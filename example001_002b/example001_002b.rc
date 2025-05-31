@@ -1,0 +1,10 @@
+#include "example001_002b.h"
+
+MENU_EXAMPLE001_002 MENU
+{
+    POPUP "&File"
+    {
+        MENUITEM "&Exit", IDM_EXIT
+    }
+    MENUITEM "&Exit", IDM_EXIT
+}
