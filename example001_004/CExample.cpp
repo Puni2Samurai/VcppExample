@@ -72,7 +72,8 @@ BOOL CMyExample::CreateExampleWindow(HINSTANCE hAppInst, int nShowCmd, int nWidt
         szWinTitle,
         dwStyle,
         x, y,
-        nWidth, nHeight,
+        rcAppWin.right - rcAppWin.left,
+        rcAppWin.bottom - rcAppWin.top,
         HWND_DESKTOP,
         NULL,
         hThisInst,
@@ -192,22 +193,6 @@ void CMyExample::UpdateScreen(HDC hDC)
 {
     if(pDibOffScreen != NULL)
     {
-        int x, y;
-
-        // 背景の描画
-        y = 0;
-        while(y < nWindowHeight)
-        {
-            x = 0;
-            while(x < nWindowWidth)
-            {
-                pDibBackground->DrawBits(hDC, x, y);
-                x += pDibBackground->GetCDibWidth();
-            }
-
-            y += pDibBackground->GetCDibHeight();
-        }
-
         // スプライトの描画
         pDibOffScreen->DrawBits(hDC, 0, 0);
     }
