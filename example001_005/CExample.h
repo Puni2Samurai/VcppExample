@@ -23,7 +23,7 @@ typedef struct tag_sprite
     int nPosX;  // 表示座標(X)
     int nPosY;  // 表示座標(Y)
     int nState;  // 状態(0:立ち, 1:歩き)
-    int nCurrentCell;  // 標示セル
+    int nCurrentCell;  // 表示セル
     DWORD dwDelay;  // 描画更新カウント
     DWORD dwLastTickCount;  // 経過時間カウント
 } SPRITE;
@@ -58,7 +58,7 @@ public:
     BOOL InitExample();
 
     void DrawBackground();
-    void DrawSprite(DWORD& dwTickCount);
+    void DrawSprite(DWORD dwTickCount);
     void UpdateFrame();
     void UpdateScreen(HDC hDC);
 

@@ -184,7 +184,7 @@ void CMyExample::DrawBackground()
 
 ////////////////////////////////////////////////////////////////
 // オフスクリーンへスプライトの描画
-void CMyExample::DrawSprite(DWORD& dwTickCount)
+void CMyExample::DrawSprite(DWORD dwTickCount)
 {
     RECT rcSrc, rcDst;
     RECT rcSrcPortion, rcDstPortion;
@@ -208,7 +208,7 @@ void CMyExample::DrawSprite(DWORD& dwTickCount)
         sprite.dwLastTickCount = dwTickCount;
     }
 
-    // スプライトの標示セルをセット
+    // スプライトの表示セルをセット
     rcSrc.left   = sprite.nCurrentCell * 64;
     rcSrc.top    = 0;
     rcSrc.right  = rcSrc.left + 64;
