@@ -23,12 +23,12 @@ enum
 // キーボード入力構造体
 typedef struct tag_mykeyboardstate
 {
-    SHORT nLeft;
-    SHORT nRight;
-    SHORT nUp;
-    SHORT nDown;
-    SHORT nButton1;
-    SHORT nButton2;
+    SHORT nLeft;    // テンキー4
+    SHORT nRight;   // テンキー6
+    SHORT nUp;      // テンキー8
+    SHORT nDown;    // テンキー2
+    SHORT nButton1; // Zキー
+    SHORT nButton2; // Xキー
 } MYKEYBOARDSTATE;
 
 ////////////////////////////////////////////////////////////////
@@ -44,7 +44,6 @@ public:
     void SetMyKeyState();
     BOOL CheckMyKeyState(int nVKey, int nMode);
     void SwitchCurrentIndex(){ nCurrentIndex = 1 - nCurrentIndex; }
-    SHORT GetLeftKey(){ return mk[nCurrentIndex].nLeft; }
 };
 
 
