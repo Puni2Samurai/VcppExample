@@ -1,0 +1,57 @@
+#include "example001.h"
+#include <winres.h>
+
+LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
+#pragma code_page(65001)
+
+////////////////////////////////////////////////////////////////
+// BITMAP
+////////////////////////////////////////////////////////////////
+IDB_BITMAP1 BITMAP DISCARDABLE "bmp\\dialog.bmp"
+
+////////////////////////////////////////////////////////////////
+// 起動時ダイアログ
+////////////////////////////////////////////////////////////////
+IDD_MYEXAMPLE_STARTUP DIALOG DISCARDABLE 100, 100, 300, 336
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION
+CAPTION "Example001起動"
+FONT 9, "ＭＳ Ｐゴシック"
+{
+    GROUPBOX    "免責", IDC_STATIC, 19, 15, 262, 140, BS_FLAT
+    CONTROL     101, IDB_BITMAP1, "Static", SS_BITMAP, 19, 172, 155, 141
+    PUSHBUTTON  "開始",     IDC_BUTTON_START,  184, 172, 97, 30
+    PUSHBUTTON  "環境設定", IDC_BUTTON_SETENV, 184, 210, 97, 30
+    PUSHBUTTON  "終了",     IDC_BUTTON_QUIT,   184, 284, 97, 30
+    LTEXT       "　当アプリは個人的な学習目的に作成されたものです。",
+                IDC_STATIC, 32, 32, 241, 27
+    LTEXT       "　動作確認は行っておりますが、それを以て安全を保証するものではありません。",
+                IDC_STATIC, 32, 56, 241, 35
+    LTEXT       "　当アプリによるいかなる損害について",
+                IDC_STATIC, 32, 80, 241, 35
+    LTEXT       "　製作者は一切の責任を負いかねますことを予めご了承ください。",
+                IDC_STATIC, 32, 104, 241, 35
+}
+
+////////////////////////////////////////////////////////////////
+// 環境設定ダイアログ
+////////////////////////////////////////////////////////////////
+IDD_MYEXAMPLE_SETENV DIALOG DISCARDABLE 0, 0, 231, 160
+STYLE DS_SYSMODAL | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION
+CAPTION "環境設定"
+FONT 9, "ＭＳ Ｐゴシック"
+{
+    GROUPBOX    "画面モード", IDC_STATIC, 6, 10, 115, 56, WS_GROUP
+    COMBOBOX    IDC_COMBO1, 10, 22, 105, 14, CBS_DROPDOWN | CBS_SORT | WS_TABSTOP | WS_VSCROLL
+    CONTROL     "ウィンドウモード", IDC_RADIO_SCREEN1, "Button", BS_AUTORADIOBUTTON, 11, 39, 76, 10
+
+    GROUPBOX    "BGM", IDC_STATIC, 6, 70, 115, 26, WS_GROUP
+    CONTROL     "OFF", IDC_RADIO_BGM_OFF, "Button", BS_AUTORADIOBUTTON, 12, 80, 29, 10
+
+    GROUPBOX    "効果音", IDC_STATIC, 6, 100, 115, 26, WS_GROUP
+    CONTROL     "OFF", IDC_RADIO_SE_OFF, "Button", BS_AUTORADIOBUTTON, 12, 110, 25, 10
+
+    GROUPBOX    "JoyPad", IDC_STATIC, 128, 10, 97, 32, WS_DISABLED
+
+    PUSHBUTTON  "適用", IDC_BUTTON_APPLY, 128, 134, 47, 20
+    PUSHBUTTON  "終了", IDC_BUTTON_EXIT,  177, 134, 48, 20
+}

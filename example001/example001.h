@@ -1,0 +1,13 @@
+#define IDB_BITMAP1              101
+#define IDD_MYEXAMPLE_STARTUP    201
+#define IDD_MYEXAMPLE_SETENV     301
+#define IDC_BUTTON_START        2001
+#define IDC_BUTTON_SETENV       2002
+#define IDC_BUTTON_QUIT         2003
+#define IDC_COMBO1              3001
+#define IDC_BUTTON_APPLY        3002
+#define IDC_BUTTON_EXIT         3003
+#define IDC_RADIO_SCREEN1       3004
+#define IDC_RADIO_BGM_OFF       3005
+#define IDC_RADIO_SE_OFF        3006
+#define IDC_RADIO_INPUT_JOYPAD  3007
