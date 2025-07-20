@@ -6,6 +6,10 @@
 #define BMP_GAME_BG  L"bmp\\game_bg.bmp"
 #define BMP_GAME_SP  L"bmp\\game_sp.bmp"
 
+#define BG_TILE_SIZE   20
+#define BG_TILE_ELEM_X 20
+#define BG_TILE_ELEM_Y 30
+
 #define MYPLAYCHAR_SIZE  64
 #define GET_MYPLAYCHAR_POS_Y (GAMESCREEN_HEIGHT - MYPLAYCHAR_SIZE - 32)
 
@@ -179,15 +183,96 @@ void CMyExampleGame::ResetGameData()
 // フレーム更新
 void CMyExampleGame::UpdateFrame(DWORD dwTickCount, BOOL bDrawSkip)
 {
+    // キー入力
+
     // 処理が間に合わなければ描画はスキップ
     if(bDrawSkip == TRUE)
     {
         return;
     }
 
+    DrawBackground();  // 背景描画
     DrawSprite(dwTickCount);  // スプライト描画
     pOffscreen->DrawBits(hMemOffscreen, 0, 0);  // 仮想ウィンドウに描画
     InvalidateRect(hwndExample, NULL, FALSE);  // 画面表示
+}
+
+////////////////////////////////////////////////////////////////
+// 背景描画
+void CMyExampleGame::DrawBackground()
+{
+    int x, y;
+    int nSizeX, nSizeY;
+    RECT rcSrc, rcDst;
+
+    // 背景のタイル
+    int nTilePattern[BG_TILE_ELEM_Y][BG_TILE_ELEM_X] = {
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+
+        { 0, 1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1, 2,  7, 9, 9, 9, 9 },
+        { 3, 4, 4, 4, 4,  4, 4, 4, 4, 4,  4, 4, 4, 4, 5,  8, 9, 9, 9, 9 },
+        { 6, 6, 6, 6, 6,  6, 6, 6, 6, 6,  6, 6, 6, 6, 6,  9, 9, 9, 9, 9 },
+        { 6, 6, 6, 6, 6,  6, 6, 6, 6, 6,  6, 6, 6, 6, 6,  9, 9, 9, 9, 9 },
+        { 6, 6, 6, 6, 6,  6, 6, 6, 6, 6,  6, 6, 6, 6, 6,  9, 9, 9, 9, 9 }
+    };
+
+    // タイル描画
+    nSizeX = BG_TILE_SIZE;
+    nSizeY = BG_TILE_SIZE;
+
+    for(y = 0; y < BG_TILE_ELEM_Y; y++)
+    {
+        for(x = 0; x < BG_TILE_ELEM_X; x++)
+        {
+            if(nTilePattern[y][x] < 0)
+            {
+                continue;
+            }
+
+            // 描画元の座標をセット
+            rcSrc.left = nTilePattern[y][x] * nSizeX;
+            rcSrc.top = 0;
+            rcSrc.right = rcSrc.left + nSizeX;
+            rcSrc.bottom = nSizeY;
+
+            // 描画先の座標をセット
+            rcDst.left = x * nSizeX;
+            rcDst.top = y * nSizeY;
+            rcDst.right = rcDst.left + nSizeX;
+            rcDst.bottom = rcDst.top + nSizeY;
+
+            // 描画
+            pOffscreen->CopyDibBits(*pBG, rcSrc, rcDst, FALSE);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////
@@ -213,7 +298,6 @@ void CMyExampleGame::DrawSprite(DWORD dwTickCount)
     rcDst.top = GET_MYPLAYCHAR_POS_Y;
     rcDst.bottom = rcDst.top + MYPLAYCHAR_SIZE;
 
-    pOffscreen->DrawRectangle(rcDst, RGB(0,0,0), 255);  // 後で削除
     pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
 }
 

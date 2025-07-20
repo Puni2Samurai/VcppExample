@@ -198,6 +198,7 @@ public:
 
     // フレーム
     void UpdateFrame(DWORD dwTickCount, BOOL bDrawSkip);
+    void DrawBackground();
     void DrawSprite(DWORD dwTickCount);
     void DrawChar(HFONT& hfont, int x, int y, LPCWSTR lpszText, COLORREF rgbText, COLORREF rgbBorder);
 };
