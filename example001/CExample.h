@@ -1,6 +1,7 @@
 #include <windows.h>
 #include "CDib.h"
 #include "CMyInput.h"
+#include "CExampleGame.h"
 
 
 ////////////////////////////////////////////////////////////////
@@ -49,20 +50,6 @@ typedef struct tag_myexample_environment
     WORD wInput;   // ユーザー入力デバイス
 } MYENVIRONMENT;
 
-// スプライト
-typedef struct tag_sprite
-{
-    RECT rcImage;  // イメージ内座標
-    int nPosX;  // 表示座標(X)
-    int nPosY;  // 表示座標(Y)
-    int nState;  // 状態
-    BYTE byAlpha;  // アルファブレンド
-    int nCurrentCell;  // 表示セル
-    int nMaxCell;  // 最大セル数
-    DWORD dwDelay;  // 描画更新カウント
-    DWORD dwLastTickCount;  // 経過時間カウント
-} SPRITE;
-
 // 選択肢
 typedef struct tag_select_cursor
 {
@@ -91,6 +78,9 @@ protected:
 
     // アプリ情報
     static MYENVIRONMENT myenv;
+
+    // 入力デバイス
+    static CMyKeyInput myKeyInput;
 
 public:
     // 描画領域
@@ -127,7 +117,7 @@ private:
     HFONT hfont64;
 
     // 入力デバイス
-    CMyKeyInput myKeyInput;
+    //CMyKeyInput myKeyInput;
 
 public:
     CMyExampleTitle();
@@ -160,11 +150,22 @@ private:
     WCHAR szFPS[8];
     DWORD dwFPSTickCount;
 
+    DWORD dwScore;
+    WCHAR szGameStatus[10];
+    DWORD dwWaveCount;
+    DWORD dwWaveInterval;
+    DWORD dwItemInterval;
+    DWORD dwBulletInterval;
+
     // スプライト
-    SPRITE spritePlayChar;  // 自キャラ
+    MYPLAYERCHARACTER spritePlayChar;  // 操作キャラ
+    CMyListBase<MYBULLET> listBullet;  // 自弾
+    CMyListBase<MYENEMY>  listEnemy;   // 敵キャラ
 
     // タスク遷移
     MYMAINTASK taskNext;  // 遷移先タスク
+    SPRITE spriteCursor;  // カーソル
+    SELECTCURSOR selcurMenu[2];  // 選択メニュー
     DWORD dwGameLastTickCount;
 
     // 画像
@@ -176,9 +177,10 @@ private:
     HFONT hfont16;
     HFONT hfont24;
     HFONT hfont32;
+    HFONT hfont64;
 
     // 入力デバイス
-    CMyKeyInput myKeyInput;
+    //CMyKeyInput myKeyInput;
 
 public:
     CMyExampleGame();
@@ -197,10 +199,22 @@ public:
     void ResetGameData();
 
     // フレーム
-    void UpdateFrame(DWORD dwTickCount, BOOL bDrawSkip);
+    void UpdateFrame_Init(DWORD dwTickCount, BOOL bDrawSkip);
+    void UpdateFrame_Main(DWORD dwTickCount, BOOL bDrawSkip);
+    void UpdateFrame_Exit(DWORD dwTickCount, BOOL bDrawSkip);
+    void CheckKeyInput();
+    void CheckKeyInput_Exit();
     void DrawBackground();
     void DrawSprite(DWORD dwTickCount);
+    void DrawSprite_Exit();
     void DrawChar(HFONT& hfont, int x, int y, LPCWSTR lpszText, COLORREF rgbText, COLORREF rgbBorder);
+    void SetScoreStr();
+
+    // ゲームデータ更新
+    void CreateBullet(DWORD dwTickCount);
+    void UpdateBullet(DWORD dwTickCount);
+    void CreateEnemy(DWORD dwTickCount);
+    void UpdateEnemy(DWORD dwTickCount);
 };
 
 ////////////////////////////////////////////////////////////////

@@ -177,6 +177,7 @@ void CMyExampleTitle::FreeTitle()
     FreeCDib(pBG);
     FreeCDib(pLogo);
     FreeCDib(pSprite);
+    FreeCDib(pOffscreen);
     DeleteObject(hfont16);
     DeleteObject(hfont32);
     DeleteObject(hfont64);

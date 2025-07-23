@@ -181,6 +181,7 @@ void CMyExample::Scheduler()
             }
 
             pMyTitle->InitOffscreen();
+            dwLastTickCount = dwElapsed;
             nMainTask = MYMAINTASK::TASK_TITLEMENU;
 
         // メニュー選択
@@ -227,6 +228,7 @@ void CMyExample::Scheduler()
 
             pMyGame->InitOffscreen();
             InvalidateRect(hwndExample, NULL, TRUE);
+            dwLastTickCount = dwElapsed;
             nMainTask = MYMAINTASK::TASK_GAMEWAIT;
 
         // 開始待ち
@@ -234,7 +236,7 @@ void CMyExample::Scheduler()
             // フレーム更新周期
             if(dwElapsed - dwLastTickCount >= GAMESCREEN_FRATE)
             {
-                pMyGame->UpdateFrame(dwLastTickCount, bDrawSkip);
+                pMyGame->UpdateFrame_Init(dwLastTickCount, bDrawSkip);
                 dwLastTickCount = dwElapsed - (dwElapsed - dwLastTickCount - GAMESCREEN_FRATE);
             }
 
@@ -246,22 +248,38 @@ void CMyExample::Scheduler()
             }
             break;
 
+        // ゲームプレイ
         case MYMAINTASK::TASK_GAMEMAIN:
             // フレーム更新周期
             if(dwElapsed - dwLastTickCount >= GAMESCREEN_FRATE)
             {
-                pMyGame->UpdateFrame(dwLastTickCount, bDrawSkip);
+                pMyGame->UpdateFrame_Main(dwLastTickCount, bDrawSkip);
                 dwLastTickCount = dwElapsed - (dwElapsed - dwLastTickCount - GAMESCREEN_FRATE);
             }
 
             nMainTask = pMyGame->GetNextTask();
             break;
 
+        // ゲームオーバー画面
         case MYMAINTASK::TASK_GAMEOVER:
+            // フレーム更新周期
+            if(dwElapsed - dwLastTickCount >= GAMESCREEN_FRATE)
+            {
+                pMyGame->UpdateFrame_Exit(dwLastTickCount, bDrawSkip);
+                dwLastTickCount = dwElapsed - (dwElapsed - dwLastTickCount - GAMESCREEN_FRATE);
+            }
+
             nMainTask = pMyGame->GetNextTask();
             break;
 
+        // ゲーム画面破棄
         case MYMAINTASK::TASK_GAMEEXIT:
+            nMainTask = MYMAINTASK::TASK_TITLEINIT;
+            if(pMyGame != NULL)
+            {
+                delete pMyGame;
+                pMyGame = NULL;
+            }
             break;
 
         ////////////////////////////////////////////////////////

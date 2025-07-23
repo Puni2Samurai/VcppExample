@@ -9,6 +9,7 @@ HINSTANCE     CMyExampleBase::hExampleInst;
 HDC           CMyExampleBase::hMemOffscreen;
 HBITMAP       CMyExampleBase::hbmOffscreen;
 MYENVIRONMENT CMyExampleBase::myenv;
+CMyKeyInput   CMyExampleBase::myKeyInput;
 MYMAINTASK    CMyExample::nMainTask;
 
 CMyExample myex;

@@ -1,4 +1,5 @@
 #include "CCommon.h"
+#include "CExampleGame.h"
 
 ////////////////////////////////////////////////////////////////
 // テンプレートクラス
@@ -81,4 +82,11 @@ CMyList<T> *CMyListBase<T>::DeleteElement(CMyList<T> *ptr)
 
     return p;
 }
+
+
+////////////////////////////////////////////////////////////////
+template class CMyListBase<MYBULLET>;
+template class CMyList<MYBULLET>;
+template class CMyListBase<MYENEMY>;
+template class CMyList<MYENEMY>;
 
