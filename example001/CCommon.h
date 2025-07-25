@@ -39,7 +39,7 @@ public:
     // 要素の追加/削除
     void AddHead(CMyList<T> *ptr);  // 先頭に要素を追加
     void AddTail(CMyList<T> *ptr);  // 末尾に要素を追加
-    CMyList<T> *DeleteElement(CMyList<T> *ptr);  // 指定の要素を削除
+    CMyList<T> *DeleteElement(CMyList<T> *ptr, BOOL bNext=TRUE);  // 指定の要素を削除
     void ClearElement(){ while(head){ DeleteElement(head); }}  // すべての要素を削除
 
     // 要素の取得

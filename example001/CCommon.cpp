@@ -52,10 +52,17 @@ void CMyListBase<T>::AddTail(CMyList<T> *ptr)
 ////////////////////////////////////////////////////////////////
 // 指定の要素を削除
 template <class T>
-CMyList<T> *CMyListBase<T>::DeleteElement(CMyList<T> *ptr)
+CMyList<T> *CMyListBase<T>::DeleteElement(CMyList<T> *ptr, BOOL bNext)
 {
     CMyList<T> *p;
-    p = ptr->next;
+    if(bNext == TRUE)
+    {
+        p = ptr->next;
+    }
+    else
+    {
+        p = ptr->prev;
+    }
 
     // 削除対象が先頭要素の場合
     if(ptr == head)

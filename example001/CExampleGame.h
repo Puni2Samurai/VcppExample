@@ -26,6 +26,7 @@ typedef struct tag_playercharacter
     SPRITE sp;
     int nLifeMax;
     int nLife;
+    int nLifeTmp;
     WORD nIsAttack;
     WORD nWeaponType;
     WORD nWeaponLevel[3];

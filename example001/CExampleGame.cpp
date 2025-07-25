@@ -21,7 +21,7 @@
 #define MYPLAYCHAR_WEAPON_RED_INDEX   0
 #define MYPLAYCHAR_WEAPON_GREEN_INDEX 1
 #define MYPLAYCHAR_WEAPON_BLUE_INDEX  2
-#define MYPLAYCHAR_LIFE 64
+#define MYPLAYCHAR_LIFE 256
 
 // 操作キャラの状態
 enum MYPLAYERCHARACTER_STATE
@@ -54,6 +54,29 @@ int nImageCell_pc[MYPLAYERCHARACTER_STATE::MAX][3] = {
 #define GETITEM_RECOVER 0x00000100
 
 // アイテムのイメージ内座標
+
+// アイコン
+enum MYICON_INDEX
+{
+    MYICON_INDEX_LIFEICON,
+    MYICON_INDEX_LIFEBAR,
+    MYICON_INDEX_ENEMYBAR,
+    MYICON_INDEX_GUN_R,
+    MYICON_INDEX_GUN_G,
+    MYICON_INDEX_GUN_B,
+    MYICON_INDEX_GUN_OFF,
+    MYICON_INDEX_GUN_ON,
+};
+RECT rcImageCell_icon[] = {
+    { 328, 288, 344, 304 },
+    { 344, 288, 348, 304 },
+    { 348, 288, 352, 296 },
+    { 320,  96, 352, 128 },
+    { 320, 128, 352, 160 },
+    { 320, 160, 352, 192 },
+    { 352,  96, 384, 128 },
+    { 352, 128, 384, 160 },
+};
 
 // 敵キャラ
 #define MYENEMY_WAVE_INTERVAL 5000  // 暫定
@@ -92,6 +115,7 @@ MYPLAYERCHARACTER::tag_playercharacter()
     nWeaponType = MYPLAYCHAR_WEAPON_GREEN_INDEX;
     nWeaponLevel[0] = nWeaponLevel[1] = nWeaponLevel[2] = 1;
     nLifeMax = MYPLAYCHAR_LIFE;
+    nLife = nLifeTmp = 0;
 
     // スプライト表示情報
     sp.nState = MYPLAYERCHARACTER_STATE::TURN;
@@ -112,7 +136,7 @@ void MYPLAYERCHARACTER::InitData(DWORD dwTickCount)
         dwTickCount = GetTickCount();
     }
 
-    nLife = nLifeMax;
+    nLife = nLifeTmp = nLifeMax;
     nIsAttack = 1;
     dwGetItemType = 0;
     nMoveX = 0;
@@ -461,6 +485,7 @@ void CMyExampleGame::UpdateFrame_Main(DWORD dwTickCount, BOOL bDrawSkip)
 {
     spritePlayChar.dwGetItemType = 0;
     spritePlayChar.nMoveX = 0;
+    spritePlayChar.nLifeTmp = spritePlayChar.nLife;
 
     CheckKeyInput();  // キー入力
 
@@ -479,24 +504,6 @@ void CMyExampleGame::UpdateFrame_Main(DWORD dwTickCount, BOOL bDrawSkip)
 
     DrawBackground();  // 背景描画
     DrawSprite(dwTickCount);  // スプライト描画
-
-    // ゲームオーバー状態の場合は暗転処理
-    if(spritePlayChar.sp.nState == MYPLAYERCHARACTER_STATE::LOSE)
-    {
-        int nDarkHeight;
-        nDarkHeight = dwTickCount - spritePlayChar.sp.dwLastTickCount;
-        nDarkHeight = (nDarkHeight > spritePlayChar.sp.dwDelay) ? spritePlayChar.sp.dwDelay : nDarkHeight;
-        nDarkHeight = nDarkHeight * GAMESCREEN_HEIGHT / spritePlayChar.sp.dwDelay;
-
-        RECT rcDark = { 0, 0, GAMESCREEN_WIDTH, nDarkHeight };
-        pOffscreen->DrawRectangle(rcDark, RGB(0,0,0), 192);
-
-        if(dwTickCount - spritePlayChar.sp.dwLastTickCount >= spritePlayChar.sp.dwDelay)
-        {
-            taskNext = MYMAINTASK::TASK_GAMEOVER;
-        }
-    }
-
     pOffscreen->DrawBits(hMemOffscreen, 0, 0);  // 仮想ウィンドウに描画
     InvalidateRect(hwndExample, NULL, FALSE);  // 画面表示
 
@@ -519,6 +526,13 @@ void CMyExampleGame::UpdateFrame_Main(DWORD dwTickCount, BOOL bDrawSkip)
 
         dwFPSTickCount = dwTickCount - (dwTickCount - dwFPSTickCount - 1000);
         wFPS = 0;
+    }
+
+    // 体力0時は画面暗転から時間経過でゲームオーバー状態へ遷移
+    if((spritePlayChar.sp.nState == MYPLAYERCHARACTER_STATE::LOSE)
+    && (dwTickCount - spritePlayChar.sp.dwLastTickCount >= spritePlayChar.sp.dwDelay))
+    {
+        taskNext = MYMAINTASK::TASK_GAMEOVER;
     }
 }
 
@@ -548,8 +562,6 @@ void CMyExampleGame::UpdateFrame_Exit(DWORD dwTickCount, BOOL bDrawSkip)
 
     DrawBackground();  // 背景描画
     DrawSprite(dwTickCount);  // スプライト描画
-    RECT rcDark = { 0, 0, GAMESCREEN_WIDTH, GAMESCREEN_HEIGHT };
-    pOffscreen->DrawRectangle(rcDark, RGB(0,0,0), 192);  // 暗転
     DrawSprite_Exit();
     pOffscreen->DrawBits(hMemOffscreen, 0, 0);  // 仮想ウィンドウに描画
     InvalidateRect(hwndExample, NULL, FALSE);  // 画面表示
@@ -778,6 +790,7 @@ void CMyExampleGame::SetScoreStr()
 // スプライト描画
 void CMyExampleGame::DrawSprite(DWORD dwTickCount)
 {
+    int i;
     int nWidth, nHeight;
     RECT rcSrc, rcDst;
     DWORD dwColor;
@@ -812,7 +825,7 @@ void CMyExampleGame::DrawSprite(DWORD dwTickCount)
         rcDst.bottom = rcDst.top + nHeight;
 
         // 描画
-        pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
+        pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE, ptrEnemy->data.sp.byAlpha);
 
         ptrEnemy = ptrEnemy->prev;
     }
@@ -866,6 +879,59 @@ void CMyExampleGame::DrawSprite(DWORD dwTickCount)
         ptrBullet = ptrBullet->next; 
     }
 
+    ////////////////////////////////////////////////////////////
+    // アイコン描画
+    ////////////////////////////////////////////////////////////
+    // ライフアイコン
+    rcSrc = rcImageCell_icon[MYICON_INDEX_LIFEICON];
+    rcDst = { 12, GAMESCREEN_HEIGHT - 24, 28, GAMESCREEN_HEIGHT - 8 };
+    pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
+
+    // ライフバー
+    rcSrc = rcImageCell_icon[MYICON_INDEX_LIFEBAR];
+    for(i = 0; i < 64; i++)
+    {
+        rcDst = { 32 + i * 4, GAMESCREEN_HEIGHT - 24, 36 + i * 4, GAMESCREEN_HEIGHT - 8 };
+        pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
+    }
+
+    // 残りライフ
+    rcDst = { 32, GAMESCREEN_HEIGHT - 20, 32 + spritePlayChar.nLife, GAMESCREEN_HEIGHT - 12 };
+    pOffscreen->DrawRectangle(rcDst, RGB(255,128,192),255);
+
+    // ウェポン
+    for(i = 0; i < 3; i++)
+    {
+        rcSrc = rcImageCell_icon[MYICON_INDEX_GUN_R + i];
+        rcDst = { 301 + i * 32 + i, GAMESCREEN_HEIGHT - 40, 333 + i * 32 + i, GAMESCREEN_HEIGHT - 8 };
+        pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
+        rcSrc = (spritePlayChar.nWeaponType == i) ? rcImageCell_icon[MYICON_INDEX_GUN_ON] : rcImageCell_icon[MYICON_INDEX_GUN_OFF];
+        pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
+    }
+
+    ////////////////////////////////////////////////////////////
+    // エフェクト描画
+    ////////////////////////////////////////////////////////////
+    // ダメージ
+    if(spritePlayChar.nLife < spritePlayChar.nLifeTmp)
+    {
+        rcDst = { 32, GAMESCREEN_HEIGHT - 24, 288, GAMESCREEN_HEIGHT - 20 };
+        pOffscreen->DrawRectangle(rcDst, RGB(255,32,32), 192);
+        rcDst = { 32, GAMESCREEN_HEIGHT - 12, 288, GAMESCREEN_HEIGHT -  8 };
+        pOffscreen->DrawRectangle(rcDst, RGB(255,32,32), 192);
+    }
+
+    // ゲームオーバー状態の場合は暗転処理
+    if(spritePlayChar.sp.nState == MYPLAYERCHARACTER_STATE::LOSE)
+    {
+        int nDarkHeight;
+        nDarkHeight = dwTickCount - spritePlayChar.sp.dwLastTickCount;
+        nDarkHeight = (nDarkHeight > spritePlayChar.sp.dwDelay) ? spritePlayChar.sp.dwDelay : nDarkHeight;
+        nDarkHeight = nDarkHeight * GAMESCREEN_HEIGHT / spritePlayChar.sp.dwDelay;
+
+        rcDst = { 0, 0, GAMESCREEN_WIDTH, nDarkHeight };
+        pOffscreen->DrawRectangle(rcDst, RGB(0,0,0), 192);
+    }
 }
 
 // スプライト描画(ゲームオーバー状態)
@@ -953,12 +1019,6 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
 
     // 武器種別ごとの弾生成
     CMyList<MYBULLET> *ptr;
-    ptr = new CMyList<MYBULLET>;
-    if(ptr == NULL)
-    {
-        return;
-    }
-
     switch(spritePlayChar.nWeaponType)
     {
         // 赤
@@ -967,6 +1027,19 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
 
         // 緑
         case MYPLAYCHAR_WEAPON_GREEN_INDEX:
+            // X座標が壁に接する場合は弾生成なし
+            if(spritePlayChar.sp.nPosX + 55 >= 300 && spritePlayChar.sp.nPosX + 52 < 316)
+            {
+                return;
+            }
+
+            // 弾の初期値をセット
+            ptr = new CMyList<MYBULLET>;
+            if(ptr == NULL)
+            {
+                return;
+            }
+
             ptr->data.nMoveX = 0;
             ptr->data.nMoveY = -4;
             ptr->data.sp.byAlpha = 255;
@@ -976,7 +1049,7 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
             ptr->data.sp.nMaxCell = 1;
             ptr->data.sp.nPosX = spritePlayChar.sp.nPosX + 52;
             ptr->data.sp.nPosY = GET_MYPLAYCHAR_POS_Y - 4;
-            ptr->data.sp.nState = 0;
+            ptr->data.sp.nState = MYPLAYCHAR_WEAPON_GREEN_INDEX;
             ptr->data.sp.rcImage = { 324, 64, 328, 68 };
 
             listBullet.AddTail(ptr);
@@ -994,12 +1067,17 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
 // 弾スプライト更新
 void CMyExampleGame::UpdateBullet(DWORD dwTickCount)
 {
+    BOOL bDelete;
+    int nWidth, nHeight;
     CMyList<MYBULLET> *ptr;
+    CMyList<MYENEMY> *pEnemy;
 
     // 弾の移動
     ptr = listBullet.GetHeadPtr();
     while(ptr)
     {
+        bDelete = FALSE;
+
         // 時間経過で弾移動
         if(dwTickCount - ptr->data.sp.dwLastTickCount > ptr->data.sp.dwDelay)
         {
@@ -1010,6 +1088,49 @@ void CMyExampleGame::UpdateBullet(DWORD dwTickCount)
 
         // 画面外の弾は削除
         if(ptr->data.sp.nPosY < 0)
+        {
+            bDelete = TRUE;
+        }
+
+        // 弾と敵の衝突判定
+        pEnemy = listEnemy.GetHeadPtr();
+        while(pEnemy)
+        {
+            // 衝突判定
+            nWidth = pEnemy->data.sp.rcImage.right - pEnemy->data.sp.rcImage.left;
+            nHeight = pEnemy->data.sp.rcImage.bottom - pEnemy->data.sp.rcImage.top;
+            if((pEnemy->data.sp.nState != MYPLAYERCHARACTER_STATE::LOSE)
+            && (ptr->data.sp.nPosX < pEnemy->data.sp.nPosX + nWidth)  && (ptr->data.sp.nPosX + 4 > pEnemy->data.sp.nPosX)
+            && (ptr->data.sp.nPosY < pEnemy->data.sp.nPosY + nHeight) && (ptr->data.sp.nPosY + 4 > pEnemy->data.sp.nPosY))
+            {
+                // 同一属性ならダメージ増
+                pEnemy->data.nLife -= (ptr->data.sp.nState == pEnemy->data.nWeaponType) ? 2 : 1;
+
+                // 撃破にともなう処理
+                if(pEnemy->data.nLife <= 0)
+                {
+                    dwScore += pEnemy->data.dwScore;
+                    pEnemy->data.nLife = 0;
+                    pEnemy->data.bDispLife = FALSE;
+                    pEnemy->data.nAttack = 0;
+                    pEnemy->data.nMoveX = 0;
+                    pEnemy->data.nMoveY = 0;
+                    pEnemy->data.sp.byAlpha = 128;
+                    pEnemy->data.sp.dwDelay = 300;
+                    pEnemy->data.sp.dwLastTickCount = dwTickCount;
+                    pEnemy->data.sp.nState = MYPLAYERCHARACTER_STATE::LOSE;
+                    pEnemy->data.sp.rcImage = { 96, 288, 128, 320 };
+                }
+
+                // 衝突した弾は削除
+                bDelete = TRUE;
+            }
+
+            pEnemy = pEnemy->next;
+        }
+
+        // 次ポインタを取得
+        if(bDelete == TRUE)
         {
             ptr = listBullet.DeleteElement(ptr);
         }
@@ -1059,8 +1180,8 @@ void CMyExampleGame::CreateEnemy(DWORD dwTickCount)
     ptr->data.bDispLife = FALSE;
     ptr->data.dwScore = 1;
     ptr->data.nAttack = 1;
-    ptr->data.nLife = 1;
-    ptr->data.nLifeMax = 1;
+    ptr->data.nLife = 2;
+    ptr->data.nLifeMax = 2;
     ptr->data.nMoveX = 0;
     ptr->data.nMoveY = 4;
     ptr->data.nWeaponType = MYPLAYCHAR_WEAPON_GREEN_INDEX;
@@ -1075,33 +1196,57 @@ void CMyExampleGame::CreateEnemy(DWORD dwTickCount)
 void CMyExampleGame::UpdateEnemy(DWORD dwTickCount)
 {
     int nHeight;
+    BOOL bDelete;
     CMyList<MYENEMY> *ptr;
 
     // 弾の移動
     ptr = listEnemy.GetTailPtr();
     while(ptr)
     {
+        bDelete = FALSE;
+
         // 時間経過で敵移動
         if(dwTickCount - ptr->data.sp.dwLastTickCount > ptr->data.sp.dwDelay)
         {
-            ptr->data.sp.nPosX += ptr->data.nMoveX;
-            ptr->data.sp.nPosY += ptr->data.nMoveY;
-            ptr->data.sp.dwLastTickCount = dwTickCount;
-
-            // 操作キャラに触れるとダメージ
-            nHeight = ptr->data.sp.rcImage.bottom - ptr->data.sp.rcImage.top;
-            if(ptr->data.sp.nPosY + nHeight > GET_MYPLAYCHAR_POS_Y)
+            // 撃破された敵は削除
+            if(ptr->data.sp.nState == MYPLAYERCHARACTER_STATE::LOSE)
             {
-                ptr->data.sp.nPosY -= ptr->data.nMoveY;
-                spritePlayChar.nLife -= ptr->data.nAttack;
-                if(spritePlayChar.nLife < 0)
+                bDelete = TRUE;
+            }
+            // 生存している敵は移動
+            {
+                ptr->data.sp.nPosX += ptr->data.nMoveX;
+                ptr->data.sp.nPosY += ptr->data.nMoveY;
+                ptr->data.sp.dwLastTickCount = dwTickCount;
+
+                // 操作キャラに触れるとダメージ
+                nHeight = ptr->data.sp.rcImage.bottom - ptr->data.sp.rcImage.top;
+                if(ptr->data.sp.nPosY + nHeight > GET_MYPLAYCHAR_POS_Y)
                 {
-                    spritePlayChar.nLife = 0;
+                    spritePlayChar.nLife -= ptr->data.nAttack;
+                    if(spritePlayChar.nLife < 0)
+                    {
+                        spritePlayChar.nLife = 0;
+                    }
+
+                    // 操作キャラに触れたらノックバック
+                    if(ptr->data.sp.nPosY + nHeight > GET_MYPLAYCHAR_POS_Y + ptr->data.nMoveY)
+                    {
+                        ptr->data.sp.nPosY = GET_MYPLAYCHAR_POS_Y - nHeight;
+                    }
                 }
             }
         }
 
-        ptr = ptr->prev;
+        // 前のポインタを取得
+        if(bDelete == TRUE)
+        {
+            ptr = listEnemy.DeleteElement(ptr, FALSE);
+        }
+        else
+        {
+            ptr = ptr->prev;
+        }
     }
 }
 
