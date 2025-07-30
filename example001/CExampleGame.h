@@ -9,6 +9,7 @@
 // スプライト
 typedef struct tag_sprite
 {
+    DWORD dwSpriteID;  // 識別子
     RECT rcImage;  // イメージ内座標
     int nPosX;  // 表示座標(X)
     int nPosY;  // 表示座標(Y)
@@ -29,8 +30,8 @@ typedef struct tag_playercharacter
     int nLifeTmp;
     WORD nIsAttack;
     WORD nWeaponType;
+    WORD nWeaponTypeOld;
     WORD nWeaponLevel[3];
-    DWORD dwGetItemType;
     int nMoveX;
 
     tag_playercharacter();
@@ -44,8 +45,8 @@ typedef struct tag_playercharacter
 typedef struct
 {
     SPRITE sp;
-    WORD nLifeMax;
-    WORD nLife;
+    int nLifeMax;
+    int nLife;
     WORD nWeaponType;
     BOOL bDispLife;
     DWORD dwScore;
@@ -61,6 +62,5 @@ typedef struct
     int nMoveX;
     int nMoveY;
 } MYBULLET;
-
 
 #endif  // EXAMPLE_GAME_H

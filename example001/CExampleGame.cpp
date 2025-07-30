@@ -16,11 +16,15 @@
 
 // 操作キャラ
 #define MYPLAYCHAR_SIZE  64
+#define MYPLAYBUDDY_SIZE 32
 #define GET_MYPLAYCHAR_POS_Y (GAMESCREEN_HEIGHT - MYPLAYCHAR_SIZE - 32)
 #define MYPLAYCHAR_WEAPON_LV_MAX     10
 #define MYPLAYCHAR_WEAPON_RED_INDEX   0
 #define MYPLAYCHAR_WEAPON_GREEN_INDEX 1
 #define MYPLAYCHAR_WEAPON_BLUE_INDEX  2
+#define MYPLAYCHAR_BUDDY_M_INDEX 0
+#define MYPLAYCHAR_BUDDY_S_INDEX 1
+#define MYPLAYCHAR_BUDDY_B_INDEX 2
 #define MYPLAYCHAR_LIFE 256
 
 // 操作キャラの状態
@@ -35,16 +39,21 @@ enum MYPLAYERCHARACTER_STATE
 };
 
 // 操作キャラのイメージ内座標とセル数
-int nImageCell_pc[MYPLAYERCHARACTER_STATE::MAX][3] = {
-    // x, y, セル数
-    { 0,                   0, 1 },  // 振り向き
-    { MYPLAYCHAR_SIZE,     0, 1 },  // 立ち
-    { MYPLAYCHAR_SIZE,     0, 2 },  // 攻撃
-    { MYPLAYCHAR_SIZE * 3, 0, 2 },  // 移動
-    { MYPLAYCHAR_SIZE * 5, 0, 1 }   // 負け
+int nImageCell_pc[MYPLAYERCHARACTER_STATE::MAX][4] = {
+    // x, y, セル数, 遅延時間
+    { 0,                   1, 1,  500 },  // 振り向き
+    { MYPLAYCHAR_SIZE,     1, 1,   60 },  // 立ち
+    { MYPLAYCHAR_SIZE,     1, 2,   60 },  // 攻撃
+    { MYPLAYCHAR_SIZE * 3, 1, 2,   60 },  // 移動
+    { MYPLAYCHAR_SIZE * 5, 0, 1, 1000 }   // 負け
 };
 
+// 操作キャラと味方キャラの相対座標
+int nBuddyPosX[3] = { 0, -16, 48 };
+int nBuddyPosY[3] = { 0,  32, 32 };
+
 // アイテム
+#define MYITEM_WAVE_INTERVAL 20000
 #define GETITEM_GUN_R   0x00000001
 #define GETITEM_GUN_G   0x00000002
 #define GETITEM_GUN_B   0x00000004
@@ -52,8 +61,7 @@ int nImageCell_pc[MYPLAYERCHARACTER_STATE::MAX][3] = {
 #define GETITEM_BUDDY2  0x00000020
 #define GETITEM_BUDDY3  0x00000040
 #define GETITEM_RECOVER 0x00000100
-
-// アイテムのイメージ内座標
+#define GETITEM_IDX_MAX          7
 
 // アイコン
 enum MYICON_INDEX
@@ -67,6 +75,7 @@ enum MYICON_INDEX
     MYICON_INDEX_GUN_OFF,
     MYICON_INDEX_GUN_ON,
 };
+
 RECT rcImageCell_icon[] = {
     { 328, 288, 344, 304 },
     { 344, 288, 348, 304 },
@@ -80,30 +89,17 @@ RECT rcImageCell_icon[] = {
 
 // 敵キャラ
 #define MYENEMY_WAVE_INTERVAL 5000  // 暫定
+#define MYENEMY_SIZE 32
+#define MYBOSS_SIZE  64
 
 // ゲームオーバー状態
 #define GAMEOVER_CONTINUE 0
 #define GAMEOVER_EXIT     1
 #define GET_MYCURSOR_POS_Y(Y)  (228+Y*80)
-int nImageCell_cursor[2] = { 0, MYPLAYCHAR_SIZE * 5 };
-
 
 ////////////////////////////////////////////////////////////////
-// 乱数取得
-LONG GetMyRandVal(LONG lMin, LONG lMax)
-{
-    LONG lRand, lRange;
+extern LONG GetMyRandVal(LONG lMin, LONG lMax);
 
-    do
-    {
-        lRand = (LONG)rand();
-    } while(lRand == RAND_MAX);
-
-    lRange = lMax - lMin + 1;
-    lRand = (LONG)((DOUBLE)lRand / RAND_MAX * lRange) + lMin;
-
-    return lRand;
-}
 
 ////////////////////////////////////////////////////////////////
 // 操作キャラの初期化
@@ -112,7 +108,7 @@ LONG GetMyRandVal(LONG lMin, LONG lMax)
 MYPLAYERCHARACTER::tag_playercharacter()
 {
     // 操作キャラ情報
-    nWeaponType = MYPLAYCHAR_WEAPON_GREEN_INDEX;
+    nWeaponType = nWeaponTypeOld = MYPLAYCHAR_WEAPON_GREEN_INDEX;
     nWeaponLevel[0] = nWeaponLevel[1] = nWeaponLevel[2] = 1;
     nLifeMax = MYPLAYCHAR_LIFE;
     nLife = nLifeTmp = 0;
@@ -138,7 +134,6 @@ void MYPLAYERCHARACTER::InitData(DWORD dwTickCount)
 
     nLife = nLifeTmp = nLifeMax;
     nIsAttack = 1;
-    dwGetItemType = 0;
     nMoveX = 0;
 
     ChangeSpriteState();
@@ -185,14 +180,10 @@ void MYPLAYERCHARACTER::ChangeSpriteState()
             sp.nState = MYPLAYERCHARACTER_STATE::LOSE;
             nIsAttack = 0;
             SetSpriteRect();
-            sp.dwDelay = 1000;
         }
     }
     // 武器持替状態
-    else
-    if((dwGetItemType & GETITEM_GUN_R && nWeaponType != MYPLAYCHAR_WEAPON_RED_INDEX)
-    || (dwGetItemType & GETITEM_GUN_G && nWeaponType != MYPLAYCHAR_WEAPON_GREEN_INDEX)
-    || (dwGetItemType & GETITEM_GUN_B && nWeaponType != MYPLAYCHAR_WEAPON_BLUE_INDEX))
+    else if(nWeaponType != nWeaponTypeOld)
     {
         if(sp.nState != MYPLAYERCHARACTER_STATE::TURN)
         {
@@ -237,10 +228,11 @@ void MYPLAYERCHARACTER::SetSpriteRect()
     sp.nMaxCell = nImageCell_pc[sp.nState][2];
     sp.rcImage = {
         nImageCell_pc[sp.nState][0],
-        nImageCell_pc[sp.nState][1],
+        (nImageCell_pc[sp.nState][1] == 0) ? 0 : nWeaponType * MYPLAYCHAR_SIZE,
         nImageCell_pc[sp.nState][0] + MYPLAYCHAR_SIZE,
-        nImageCell_pc[sp.nState][1] + MYPLAYCHAR_SIZE
+        (nImageCell_pc[sp.nState][1] == 0) ? MYPLAYCHAR_SIZE : (nWeaponType + 1) * MYPLAYCHAR_SIZE
     };
+    sp.dwDelay = nImageCell_pc[sp.nState][3];
 }
 
 ////////////////////////////////////////////////////////////////
@@ -258,9 +250,10 @@ CMyExampleGame::CMyExampleGame()
     pOffscreen = NULL;  // オフスクリーン
 
     // フォント
+    hfont12 = NULL;
     hfont16 = NULL;
-    hfont24 = NULL;
     hfont32 = NULL;
+    hfont64 = NULL;
 }
 
 ////////////////////////////////////////////////////////////////
@@ -308,8 +301,8 @@ BOOL CMyExampleGame::InitGame()
     pOffscreen->SetTransparentColor(pSprite->GetTransparentColor());
 
     // フォント
-    hfont16 = CreateFontW(
-        16, 0, 0, 0,
+    hfont12 = CreateFontW(
+        12, 0, 0, 0,
         FW_DONTCARE,
         FALSE, FALSE, FALSE,
         SHIFTJIS_CHARSET,
@@ -318,8 +311,8 @@ BOOL CMyExampleGame::InitGame()
         L"ＭＳ ゴシック"
     );
 
-    hfont24 = CreateFontW(
-        24, 0, 0, 0,
+    hfont16 = CreateFontW(
+        16, 0, 0, 0,
         FW_DONTCARE,
         FALSE, FALSE, FALSE,
         SHIFTJIS_CHARSET,
@@ -351,9 +344,9 @@ BOOL CMyExampleGame::InitGame()
     // 選択カーソル
     spriteCursor.nState = GAMEOVER_CONTINUE;
     spriteCursor.rcImage.left = 0;
-    spriteCursor.rcImage.top = 0;
+    spriteCursor.rcImage.top = 64;
     spriteCursor.rcImage.right = MYPLAYCHAR_SIZE;
-    spriteCursor.rcImage.bottom = MYPLAYCHAR_SIZE;
+    spriteCursor.rcImage.bottom = 64 + MYPLAYCHAR_SIZE;
     spriteCursor.nPosX = 24;
     spriteCursor.nPosY = GET_MYCURSOR_POS_Y(spriteCursor.nState);
     spriteCursor.nCurrentCell = 0;
@@ -405,13 +398,15 @@ void CMyExampleGame::FreeGame()
     FreeCDib(pBG);
     FreeCDib(pSprite);
     FreeCDib(pOffscreen);
+    DeleteObject(hfont12);
     DeleteObject(hfont16);
-    DeleteObject(hfont24);
     DeleteObject(hfont32);
     DeleteObject(hfont64);
 
     listBullet.ClearElement();
     listEnemy.ClearElement();
+    listItem.ClearElement();
+    listBuddy.ClearElement();
 }
 
 void CMyExampleGame::FreeCDib(CDib24* ptr)
@@ -457,12 +452,15 @@ void CMyExampleGame::ResetGameData()
     taskNext = MYMAINTASK::TASK_GAMEMAIN;
     dwScore = 0;
     dwWaveCount = 0;
+    wItemIndex = 0;
     dwWaveInterval = dwItemInterval = dwBulletInterval = dwTickCount;
 
     // スプライト初期化
-    spritePlayChar.InitData(dwTickCount);  // 操作キャラ
+    spritePlayChar.InitData(dwTickCount);
     listBullet.ClearElement();
     listEnemy.ClearElement();
+    listItem.ClearElement();
+    listBuddy.ClearElement();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -483,7 +481,7 @@ void CMyExampleGame::UpdateFrame_Init(DWORD dwTickCount, BOOL bDrawSkip)
 
 void CMyExampleGame::UpdateFrame_Main(DWORD dwTickCount, BOOL bDrawSkip)
 {
-    spritePlayChar.dwGetItemType = 0;
+    spritePlayChar.nWeaponTypeOld = spritePlayChar.nWeaponType;
     spritePlayChar.nMoveX = 0;
     spritePlayChar.nLifeTmp = spritePlayChar.nLife;
 
@@ -494,7 +492,14 @@ void CMyExampleGame::UpdateFrame_Main(DWORD dwTickCount, BOOL bDrawSkip)
     UpdateBullet(dwTickCount);  // 弾移動
     CreateEnemy(dwTickCount);   // 敵生成
     UpdateEnemy(dwTickCount);   // 敵移動
-    spritePlayChar.ChangeSpriteState();  // 操作キャラ情報更新
+    CreateGameItem(dwTickCount);// アイテム生成
+    UpdateGameItem(dwTickCount);// アイテム更新
+    UpdateBuddy(dwTickCount);   // 味方キャラ情報更新
+    if((spritePlayChar.sp.nState != MYPLAYERCHARACTER_STATE::TURN)
+    || (dwTickCount - spritePlayChar.sp.dwLastTickCount >= spritePlayChar.sp.dwDelay))
+    {
+        spritePlayChar.ChangeSpriteState();  // 操作キャラ情報更新
+    }
 
     // 処理が間に合わなければ描画はスキップ
     if(bDrawSkip == TRUE)
@@ -506,27 +511,7 @@ void CMyExampleGame::UpdateFrame_Main(DWORD dwTickCount, BOOL bDrawSkip)
     DrawSprite(dwTickCount);  // スプライト描画
     pOffscreen->DrawBits(hMemOffscreen, 0, 0);  // 仮想ウィンドウに描画
     InvalidateRect(hwndExample, NULL, FALSE);  // 画面表示
-
-    // 文字描画
-    BYTE byCharColor;
-    byCharColor = (spritePlayChar.nLife > 0) ? 254 : 64;
-
-    // スコア表示
-    SetScoreStr();
-    DrawChar(hfont16, 320, 16, szGameStatus, RGB(byCharColor,byCharColor,byCharColor), RGB(0,0,0));
-
-    // FPS表示
-    DrawChar(hfont16, 336, 40, szFPS, RGB(byCharColor,byCharColor,byCharColor), RGB(0,0,0));
-    wFPS++;
-    if(dwTickCount - dwFPSTickCount >= 1000)
-    {
-        szFPS[4] = L'0' + wFPS / 100;
-        szFPS[5] = L'0' + wFPS % 100 / 10;
-        szFPS[6] = L'0' + wFPS % 10;
-
-        dwFPSTickCount = dwTickCount - (dwTickCount - dwFPSTickCount - 1000);
-        wFPS = 0;
-    }
+    DrawGameString(dwTickCount);  // 情報文字列表示
 
     // 体力0時は画面暗転から時間経過でゲームオーバー状態へ遷移
     if((spritePlayChar.sp.nState == MYPLAYERCHARACTER_STATE::LOSE)
@@ -565,6 +550,7 @@ void CMyExampleGame::UpdateFrame_Exit(DWORD dwTickCount, BOOL bDrawSkip)
     DrawSprite_Exit();
     pOffscreen->DrawBits(hMemOffscreen, 0, 0);  // 仮想ウィンドウに描画
     InvalidateRect(hwndExample, NULL, FALSE);  // 画面表示
+    DrawGameString(dwTickCount);  // 情報文字列表示
 
     // メニュー文字描画
     DrawChar(
@@ -579,10 +565,6 @@ void CMyExampleGame::UpdateFrame_Exit(DWORD dwTickCount, BOOL bDrawSkip)
         selcurMenu[1].lpszText,
         selcurMenu[1].rgbText[selcurMenu[1].nState], RGB(0,0,0)
     );  // "GAMEOVER"描画
-
-    // スコア表示
-    SetScoreStr();
-    DrawChar(hfont16, 320, 16, szGameStatus, RGB(64,64,64), RGB(0,0,0));
 }
 
 ////////////////////////////////////////////////////////////////
@@ -771,27 +753,11 @@ void CMyExampleGame::DrawBackground()
 }
 
 ////////////////////////////////////////////////////////////////
-// スコアの文字列をセット
-void CMyExampleGame::SetScoreStr()
-{
-    szGameStatus[0] = L'0' + dwScore / 100000000;
-    szGameStatus[1] = L'0' + dwScore % 100000000 / 10000000;
-    szGameStatus[2] = L'0' + dwScore % 10000000 / 1000000;
-    szGameStatus[3] = L'0' + dwScore % 1000000 / 100000;
-    szGameStatus[4] = L'0' + dwScore % 100000 / 100000;
-    szGameStatus[5] = L'0' + dwScore % 10000 / 1000;
-    szGameStatus[6] = L'0' + dwScore % 1000 / 100;
-    szGameStatus[7] = L'0' + dwScore % 100 / 10;
-    szGameStatus[8] = L'0' + dwScore % 10;
-    szGameStatus[9] = 0;
-}
-
-////////////////////////////////////////////////////////////////
 // スプライト描画
 void CMyExampleGame::DrawSprite(DWORD dwTickCount)
 {
     int i;
-    int nWidth, nHeight;
+    int nWidth, nHeight, nCorrect;
     RECT rcSrc, rcDst;
     DWORD dwColor;
 
@@ -827,35 +793,32 @@ void CMyExampleGame::DrawSprite(DWORD dwTickCount)
         // 描画
         pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE, ptrEnemy->data.sp.byAlpha);
 
+        // 残り体力表示
+        if((ptrEnemy->data.bDispLife == TRUE) && (ptrEnemy->data.sp.nPosY >= 8))
+        {
+            rcSrc = { 348, 288, 352, 296 };
+            rcDst.top = ptrEnemy->data.sp.nPosY - 8;
+            rcDst.bottom = rcDst.top + 8;
+            for(i = 0; i < 10; i++)
+            {
+                rcDst.left = ptrEnemy->data.sp.nPosX + (nWidth - 40) / 2 + i * 4;
+                rcDst.right = rcDst.left + 4;
+                pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
+            }
+
+            nCorrect = ptrEnemy->data.nLife * 40 / ptrEnemy->data.nLifeMax;
+            if(nCorrect > 0)
+            {
+                rcDst.left = ptrEnemy->data.sp.nPosX + (nWidth - 40) / 2;
+                rcDst.top = ptrEnemy->data.sp.nPosY - 6;
+                rcDst.right = rcDst.left + nCorrect;
+                rcDst.bottom = rcDst.top + 4;
+                pOffscreen->DrawRectangle(rcDst, RGB(255,64,64), 255);
+            }
+        }
+
         ptrEnemy = ptrEnemy->prev;
     }
-
-    ////////////////////////////////////////////////////////////
-    // 自キャラ描画
-    ////////////////////////////////////////////////////////////
-    // アニメーション
-    if(dwTickCount - spritePlayChar.sp.dwLastTickCount >= spritePlayChar.sp.dwDelay)
-    {
-        if(spritePlayChar.sp.nState != MYPLAYERCHARACTER_STATE::LOSE)
-        {
-            spritePlayChar.sp.nCurrentCell = (spritePlayChar.sp.nCurrentCell + 1) % spritePlayChar.sp.nMaxCell;
-            spritePlayChar.sp.dwLastTickCount = dwTickCount;
-        }
-    }
-
-    // イメージ内座標をセット
-    rcSrc = spritePlayChar.sp.rcImage;
-    rcSrc.left = rcSrc.left + spritePlayChar.sp.nCurrentCell * MYPLAYCHAR_SIZE;
-    rcSrc.right = rcSrc.left + MYPLAYCHAR_SIZE;
-
-    // 描画位置をセット
-    rcDst.left = spritePlayChar.sp.nPosX;
-    rcDst.right = rcDst.left + MYPLAYCHAR_SIZE;
-    rcDst.top = GET_MYPLAYCHAR_POS_Y;
-    rcDst.bottom = rcDst.top + MYPLAYCHAR_SIZE;
-
-    // 描画
-    pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
 
     ////////////////////////////////////////////////////////////
     // 弾描画
@@ -880,6 +843,248 @@ void CMyExampleGame::DrawSprite(DWORD dwTickCount)
     }
 
     ////////////////////////////////////////////////////////////
+    // アイテム描画
+    ////////////////////////////////////////////////////////////
+    int nHeightTop, nHeightMiddle, nHeightBottom;
+    int nWidthExt;
+    CMyList<CMyGameItem> *ptrItem;
+    ptrItem = listItem.GetHeadPtr();
+    while(ptrItem)
+    {
+        // 非活性のアイテムは描画をスキップ
+        if(ptrItem->data.bActive == FALSE)
+        {
+            ptrItem = ptrItem->next;
+            continue;
+        }
+
+        nHeightTop = ptrItem->data.rcUpSide.bottom - ptrItem->data.rcUpSide.top;
+        nHeightBottom = ptrItem->data.rcLowSide.bottom - ptrItem->data.rcLowSide.top;
+        nHeightMiddle = ptrItem->data.rcLowSide.top - ptrItem->data.rcUpSide.bottom;
+        nWidthExt = ptrItem->data.rcLowSide.right - ptrItem->data.rcLowSide.left;
+
+        // 画面外のアイテムは描画をスキップ
+        if(ptrItem->data.sp.nPosY + nHeightTop + nHeightMiddle + nHeightBottom <= 0)
+        {
+            ptrItem = ptrItem->next;
+            continue;
+        }
+
+        ////////////////////////////////////////////////////////
+        // アイテム下段を描画
+        ////////////////////////////////////////////////////////
+        // イメージ内座標をセット
+        rcSrc = ptrItem->data.rcLowSide;
+
+        // 画面外の領域は切り取る
+        if(ptrItem->data.sp.nPosY + nHeightTop + nHeightMiddle < 0)
+        {
+            rcSrc.top = rcSrc.top - (ptrItem->data.sp.nPosY + nHeightTop + nHeightMiddle);
+        }
+
+        // 描画位置をセット
+        rcDst.left = ptrItem->data.sp.nPosX;
+        rcDst.top = (ptrItem->data.sp.nPosY + nHeightTop + nHeightMiddle < 0) ? 0 : ptrItem->data.sp.nPosY + nHeightTop + nHeightMiddle;
+        rcDst.right = rcDst.left + nWidthExt;
+        rcDst.bottom = rcDst.top + nHeightBottom;
+
+        // 描画
+        pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE, ptrItem->data.sp.byAlpha);
+
+        ////////////////////////////////////////////////////////
+        // アイテム上段を描画
+        ////////////////////////////////////////////////////////
+        // イメージ内座標をセット
+        rcSrc = ptrItem->data.rcUpSide;
+
+        // 画面内の領域あり
+        if(ptrItem->data.sp.nPosY + nHeightTop > 0)
+        {
+            // 画面外の領域は切り取る
+            if(ptrItem->data.sp.nPosY < 0)
+            {
+                rcSrc.top = rcSrc.top - ptrItem->data.sp.nPosY;
+            }
+
+            // 描画位置をセット
+            rcDst.left = ptrItem->data.sp.nPosX;
+            rcDst.top = ptrItem->data.sp.nPosY < 0 ? 0 : ptrItem->data.sp.nPosY;
+            rcDst.right = rcDst.left + nWidthExt;
+            rcDst.bottom = rcDst.top + nHeightTop;
+
+            // 描画
+            pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE, ptrItem->data.sp.byAlpha);
+        }
+
+        ////////////////////////////////////////////////////////
+        // アイテム内容を描画
+        ////////////////////////////////////////////////////////
+        // イメージ内座標をセット
+        rcSrc = ptrItem->data.sp.rcImage;
+
+        // 画面内の領域あり
+        nWidth = rcSrc.right - rcSrc.left;
+        nHeight = rcSrc.bottom - rcSrc.top;
+        nCorrect = (nHeightMiddle - nHeight) / 2;
+        if(ptrItem->data.sp.nPosY + nHeight + nHeightTop + nCorrect > 0)
+        {
+            // 画面外の領域は切り取る
+            if(ptrItem->data.sp.nPosY + nHeightTop + nCorrect < 0)
+            {
+                rcSrc.top = rcSrc.top - (ptrItem->data.sp.nPosY + nHeightTop + nCorrect);
+            }
+
+            // 描画位置をセット
+            rcDst.left = ptrItem->data.sp.nPosX + ((nWidthExt - nWidth) / 2);
+            rcDst.top = (ptrItem->data.sp.nPosY + nHeightTop + nCorrect < 0) ? 0 : ptrItem->data.sp.nPosY + nHeightTop + nCorrect;
+            rcDst.right = rcDst.left + nWidth;
+            rcDst.bottom = rcDst.top + nHeight;
+
+            // 描画
+            pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
+        }
+
+        ////////////////////////////////////////////////////////
+        // アイテム耐久を描画
+        ////////////////////////////////////////////////////////
+        // 画面内の領域あり
+        nHeight = (int)(ptrItem->data.nLife * nHeightMiddle / ptrItem->data.nLifeMax);
+        nCorrect = nHeightMiddle - nHeight;
+        if((nHeight > 0) && (ptrItem->data.sp.nPosY + nHeightTop + nHeightMiddle > 0))
+        {
+            // 画面外の領域は切り取る
+            if(ptrItem->data.sp.nPosY + nHeightTop + nCorrect < 0)
+            {
+                nHeight = nHeight + (ptrItem->data.sp.nPosY + nHeightTop + nCorrect);
+            }
+
+            // 描画位置をセット
+            rcDst.left = ptrItem->data.sp.nPosX;
+            rcDst.top = (ptrItem->data.sp.nPosY + nHeightTop + nCorrect < 0) ? 0 : ptrItem->data.sp.nPosY + nHeightTop + nCorrect;
+            rcDst.right = rcDst.left + nWidthExt;
+            rcDst.bottom = rcDst.top + nHeight;
+
+            // 描画
+            BYTE byRed, byGreen, byBlue;
+            byRed   = (ptrItem->data.sp.nCurrentCell == MYPLAYCHAR_WEAPON_RED_INDEX)   ? 255 : 64;
+            byGreen = (ptrItem->data.sp.nCurrentCell == MYPLAYCHAR_WEAPON_GREEN_INDEX) ? 255 : 64;
+            byBlue  = (ptrItem->data.sp.nCurrentCell == MYPLAYCHAR_WEAPON_BLUE_INDEX)  ? 255 : 64;
+            pOffscreen->DrawRectangle(rcDst, RGB(byRed,byGreen,byBlue), 128);
+        }
+
+        ////////////////////////////////////////////////////////
+        // アイテム中段を描画
+        ////////////////////////////////////////////////////////
+        // イメージ内座標をセット
+        rcSrc.left = ptrItem->data.rcUpSide.left;
+        rcSrc.top = ptrItem->data.rcUpSide.bottom;
+        rcSrc.right = rcSrc.left + nWidthExt;
+        rcSrc.bottom = rcSrc.top + nHeightMiddle;
+
+        // アイテム未開放、かつ、画面内の領域あり
+        if((ptrItem->data.sp.nState != MYPLAYERCHARACTER_STATE::LOSE)
+        && (ptrItem->data.sp.nPosY + nHeightTop + nHeightMiddle > 0))
+        {
+            // 画面外の領域は切り取る
+            if(ptrItem->data.sp.nPosY + nHeightTop < 0)
+            {
+                rcSrc.top = rcSrc.top - (ptrItem->data.sp.nPosY + nHeightTop);
+            }
+
+            // 描画位置をセット
+            rcDst.left = ptrItem->data.sp.nPosX;
+            rcDst.top = (ptrItem->data.sp.nPosY + nHeightTop < 0) ? 0 : ptrItem->data.sp.nPosY + nHeightTop;
+            rcDst.right = rcDst.left + nWidthExt;
+            rcDst.bottom = rcDst.top + nHeightMiddle;
+
+            // 描画
+            pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE, ptrItem->data.sp.byAlpha);
+        }
+
+        ptrItem = ptrItem->next;
+    }
+
+    ////////////////////////////////////////////////////////////
+    // 操作キャラ/味方キャラ描画
+    ////////////////////////////////////////////////////////////
+    // アニメーション
+    if(dwTickCount - spritePlayChar.sp.dwLastTickCount >= spritePlayChar.sp.dwDelay)
+    {
+        if(spritePlayChar.sp.nState != MYPLAYERCHARACTER_STATE::LOSE)
+        {
+            spritePlayChar.sp.nCurrentCell = (spritePlayChar.sp.nCurrentCell + 1) % spritePlayChar.sp.nMaxCell;
+            spritePlayChar.sp.dwLastTickCount = dwTickCount;
+        }
+    }
+
+    ////////////////////////////////////////////
+    // 先頭の味方キャラ
+    ////////////////////////////////////////////
+    CMyList<SPRITE> *ptrBuddy;
+    int nImageCell_buddy[MYPLAYERCHARACTER_STATE::MAX] = { 0, 0, 32, 32, 96 };
+
+    ptrBuddy = listBuddy.GetHeadPtr();
+    if(ptrBuddy != NULL)
+    {
+        // イメージ内座標をセット
+        rcSrc = ptrBuddy->data.rcImage;
+        rcSrc.left = rcSrc.left + ptrBuddy->data.nCurrentCell * MYPLAYBUDDY_SIZE + nImageCell_buddy[ptrBuddy->data.nState];
+        rcSrc.right = rcSrc.left + MYPLAYBUDDY_SIZE;
+
+        // 描画位置をセット
+        rcDst.left = ptrBuddy->data.nPosX;
+        rcDst.right = rcDst.left + MYPLAYBUDDY_SIZE;
+        rcDst.top = ptrBuddy->data.nPosY;
+        rcDst.bottom = rcDst.top + MYPLAYBUDDY_SIZE;
+
+        // 描画
+        pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE, ptrBuddy->data.byAlpha);
+    }
+
+    ////////////////////////////////////////////
+    // 操作キャラ
+    ////////////////////////////////////////////
+    // イメージ内座標をセット
+    rcSrc = spritePlayChar.sp.rcImage;
+    rcSrc.left = rcSrc.left + spritePlayChar.sp.nCurrentCell * MYPLAYCHAR_SIZE;
+    rcSrc.right = rcSrc.left + MYPLAYCHAR_SIZE;
+
+    // 描画位置をセット
+    rcDst.left = spritePlayChar.sp.nPosX;
+    rcDst.right = rcDst.left + MYPLAYCHAR_SIZE;
+    rcDst.top = GET_MYPLAYCHAR_POS_Y;
+    rcDst.bottom = rcDst.top + MYPLAYCHAR_SIZE;
+
+    // 描画
+    pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE);
+
+    ////////////////////////////////////////////
+    // 後方の味方キャラ
+    ////////////////////////////////////////////
+    ptrBuddy = listBuddy.GetHeadPtr();
+    while(ptrBuddy)
+    {
+        if(ptrBuddy != listBuddy.GetHeadPtr())
+        {
+            // イメージ内座標をセット
+            rcSrc = ptrBuddy->data.rcImage;
+            rcSrc.left = rcSrc.left + ptrBuddy->data.nCurrentCell * MYPLAYBUDDY_SIZE + nImageCell_buddy[ptrBuddy->data.nState];
+            rcSrc.right = rcSrc.left + MYPLAYBUDDY_SIZE;
+
+            // 描画位置をセット
+            rcDst.left = ptrBuddy->data.nPosX;
+            rcDst.right = rcDst.left + MYPLAYBUDDY_SIZE;
+            rcDst.top = ptrBuddy->data.nPosY;
+            rcDst.bottom = rcDst.top + MYPLAYBUDDY_SIZE;
+
+            // 描画
+            pOffscreen->CopyDibBits(*pSprite, rcSrc, rcDst, TRUE, ptrBuddy->data.byAlpha);
+        }
+
+        ptrBuddy = ptrBuddy->next;
+    }
+
+    ////////////////////////////////////////////////////////////
     // アイコン描画
     ////////////////////////////////////////////////////////////
     // ライフアイコン
@@ -897,7 +1102,7 @@ void CMyExampleGame::DrawSprite(DWORD dwTickCount)
 
     // 残りライフ
     rcDst = { 32, GAMESCREEN_HEIGHT - 20, 32 + spritePlayChar.nLife, GAMESCREEN_HEIGHT - 12 };
-    pOffscreen->DrawRectangle(rcDst, RGB(255,128,192),255);
+    pOffscreen->DrawRectangle(rcDst, RGB(255,128,192), 255);
 
     // ウェポン
     for(i = 0; i < 3; i++)
@@ -939,11 +1144,13 @@ void CMyExampleGame::DrawSprite_Exit()
 {
     RECT rcSrc, rcDst;
     DWORD dwColor;
+    RECT rcImageCell_cursor[2] = {
+        { 0, MYPLAYCHAR_SIZE, MYPLAYCHAR_SIZE, MYPLAYCHAR_SIZE * 2 },
+        { MYPLAYCHAR_SIZE * 5, 0, MYPLAYCHAR_SIZE * 6, MYPLAYCHAR_SIZE } 
+    };
 
     // スプライト表示
-    rcSrc = spriteCursor.rcImage;
-    rcSrc.left = nImageCell_cursor[spriteCursor.nState];
-    rcSrc.right = rcSrc.left + MYPLAYCHAR_SIZE;
+    rcSrc = rcImageCell_cursor[spriteCursor.nState];
 
     rcDst.left = spriteCursor.nPosX;
     rcDst.right = rcDst.left + MYPLAYCHAR_SIZE;
@@ -967,19 +1174,80 @@ void CMyExampleGame::DrawSprite_Exit()
 }
 
 ////////////////////////////////////////////////////////////////
+// 文字情報表示
+void CMyExampleGame::DrawGameString(DWORD dwTickCount)
+{
+    int i;
+    BYTE byCharColor;
+    byCharColor = (spritePlayChar.nLife > 0) ? 254 : 64;
+
+    // スコア表示
+    szGameStatus[0] = L'0' + dwScore / 100000000;
+    szGameStatus[1] = L'0' + dwScore % 100000000 / 10000000;
+    szGameStatus[2] = L'0' + dwScore % 10000000 / 1000000;
+    szGameStatus[3] = L'0' + dwScore % 1000000 / 100000;
+    szGameStatus[4] = L'0' + dwScore % 100000 / 10000;
+    szGameStatus[5] = L'0' + dwScore % 10000 / 1000;
+    szGameStatus[6] = L'0' + dwScore % 1000 / 100;
+    szGameStatus[7] = L'0' + dwScore % 100 / 10;
+    szGameStatus[8] = L'0' + dwScore % 10;
+    szGameStatus[9] = 0;
+    DrawChar(hfont16, 320, 16, szGameStatus, RGB(byCharColor,byCharColor,byCharColor), RGB(0,0,0));
+
+    // FPS表示
+    DrawChar(hfont16, 336, 40, szFPS, RGB(byCharColor,byCharColor,byCharColor), RGB(0,0,0));
+    wFPS++;
+    if(dwTickCount - dwFPSTickCount >= 1000)
+    {
+        szFPS[4] = L'0' + wFPS / 100;
+        szFPS[5] = L'0' + wFPS % 100 / 10;
+        szFPS[6] = L'0' + wFPS % 10;
+
+        dwFPSTickCount = dwTickCount - (dwTickCount - dwFPSTickCount - 1000);
+        wFPS = 0;
+    }
+
+    // 武器Lv表示
+    for(i = 0; i < 3; i++)
+    {
+        if(spritePlayChar.nWeaponLevel[i] < 10)
+        {
+            wcscpy(szGameStatus, L"Lv");
+            szGameStatus[2] = L'0' + spritePlayChar.nWeaponLevel[i] % 10;
+            szGameStatus[3] = 0;
+        }
+        else
+        {
+            wcscpy(szGameStatus, L"MAX");
+            szGameStatus[3] = 0;
+        }
+
+        DrawChar(
+            hfont12,
+            315 + i * 32 + i, GAMESCREEN_HEIGHT - 18,
+            szGameStatus,
+            RGB(byCharColor,byCharColor,byCharColor), RGB(0,0,0), FALSE
+        );
+    }
+}
+
+////////////////////////////////////////////////////////////////
 // 文字列描画
-void CMyExampleGame::DrawChar(HFONT& hfont, int x, int y, LPCWSTR lpszText, COLORREF rgbText, COLORREF rgbBorder)
+void CMyExampleGame::DrawChar(HFONT& hfont, int x, int y, LPCWSTR lpszText, COLORREF rgbText, COLORREF rgbBorder, BOOL bBorder)
 {
     HFONT hFontOld;
 
     SetBkMode(hMemOffscreen, TRANSPARENT);
     hFontOld = (HFONT)SelectObject(hMemOffscreen, hfont);
 
-    SetTextColor(hMemOffscreen, rgbBorder);
-    TextOutW(hMemOffscreen, x, y - 1, lpszText, wcslen(lpszText));
-    TextOutW(hMemOffscreen, x + 1, y, lpszText, wcslen(lpszText));
-    TextOutW(hMemOffscreen, x, y + 1, lpszText, wcslen(lpszText));
-    TextOutW(hMemOffscreen, x - 1, y, lpszText, wcslen(lpszText));
+    if(bBorder == TRUE)
+    {
+        SetTextColor(hMemOffscreen, rgbBorder);
+        TextOutW(hMemOffscreen, x, y - 1, lpszText, wcslen(lpszText));
+        TextOutW(hMemOffscreen, x + 1, y, lpszText, wcslen(lpszText));
+        TextOutW(hMemOffscreen, x, y + 1, lpszText, wcslen(lpszText));
+        TextOutW(hMemOffscreen, x - 1, y, lpszText, wcslen(lpszText));
+    }
 
     SetTextColor(hMemOffscreen, rgbText);
     TextOutW(hMemOffscreen, x, y, lpszText, wcslen(lpszText));
@@ -988,29 +1256,116 @@ void CMyExampleGame::DrawChar(HFONT& hfont, int x, int y, LPCWSTR lpszText, COLO
 }
 
 ////////////////////////////////////////////////////////////////
+// 味方状態更新
+void CMyExampleGame::UpdateBuddy(DWORD dwTickCount)
+{
+    int nIndex;
+    BOOL bDelete;
+    CMyList<SPRITE> *ptr;
+
+    nIndex = 0;
+    ptr = listBuddy.GetHeadPtr();
+    while(ptr)
+    {
+        bDelete = FALSE;
+
+        // 一定時間経過
+        if(dwTickCount - ptr->data.dwLastTickCount >= ptr->data.dwDelay)
+        {
+            if(ptr->data.nState == MYPLAYERCHARACTER_STATE::LOSE)
+            {
+                bDelete = TRUE;
+            }
+            else
+            {
+                ptr->data.nCurrentCell = (ptr->data.nCurrentCell + 1) % ptr->data.nMaxCell;
+                ptr->data.dwLastTickCount = dwTickCount;
+            }
+        }
+
+        // 生存キャラの情報更新
+        if(ptr->data.nState != MYPLAYERCHARACTER_STATE::LOSE)
+        {
+            // 操作キャラの状態に応じて味方キャラの状態を変更
+            if((spritePlayChar.sp.nState == MYPLAYERCHARACTER_STATE::STAND)
+            && (ptr->data.nState != MYPLAYERCHARACTER_STATE::STAND))
+            {
+                ptr->data.nState = MYPLAYERCHARACTER_STATE::STAND;
+                ptr->data.nCurrentCell = 0;
+                ptr->data.dwLastTickCount = dwTickCount;
+                ptr->data.nMaxCell = nImageCell_pc[MYPLAYERCHARACTER_STATE::STAND][2];
+                ptr->data.dwDelay = nImageCell_pc[MYPLAYERCHARACTER_STATE::STAND][3];
+            }
+            else if((spritePlayChar.sp.nState == MYPLAYERCHARACTER_STATE::ATTACK)
+            && (ptr->data.nState != MYPLAYERCHARACTER_STATE::MOVE))
+            {
+                ptr->data.nState = MYPLAYERCHARACTER_STATE::MOVE;
+                ptr->data.nCurrentCell = 0;
+                ptr->data.dwLastTickCount = dwTickCount;
+                ptr->data.nMaxCell = nImageCell_pc[MYPLAYERCHARACTER_STATE::MOVE][2];
+                ptr->data.dwDelay = nImageCell_pc[MYPLAYERCHARACTER_STATE::MOVE][3];
+            }
+            else if((spritePlayChar.sp.nState == MYPLAYERCHARACTER_STATE::MOVE)
+            && (ptr->data.nState != MYPLAYERCHARACTER_STATE::MOVE))
+            {
+                ptr->data.nState = MYPLAYERCHARACTER_STATE::MOVE;
+                ptr->data.nCurrentCell = 0;
+                ptr->data.dwLastTickCount = dwTickCount;
+                ptr->data.nMaxCell = nImageCell_pc[MYPLAYERCHARACTER_STATE::MOVE][2];
+                ptr->data.dwDelay = nImageCell_pc[MYPLAYERCHARACTER_STATE::MOVE][3];
+            }
+
+            // 座標更新
+            ptr->data.nPosX = spritePlayChar.sp.nPosX + nBuddyPosX[nIndex];
+            if(ptr->data.nPosX < 0)
+            {
+                ptr->data.nPosX = 0;
+            }
+
+            if(ptr->data.nPosX > GAMESCREEN_WIDTH - MYPLAYBUDDY_SIZE)
+            {
+                ptr->data.nPosX = GAMESCREEN_WIDTH - MYPLAYBUDDY_SIZE;
+            }
+        }
+
+        // 次のポインタを取得
+        nIndex++;
+        if(bDelete == TRUE)
+        {
+            ptr = listBuddy.DeleteElement(ptr);
+        }
+        else
+        {
+            ptr = ptr->next;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////
 // 弾スプライト生成
 void CMyExampleGame::CreateBullet(DWORD dwTickCount)
 {
-    // 攻撃状態でなければ処理対象外
-    if(spritePlayChar.nIsAttack == 0)
+    // 攻撃状態/攻撃可能状態でなければ処理対象外
+    if((spritePlayChar.nIsAttack == 0)
+    || (spritePlayChar.sp.nState != MYPLAYERCHARACTER_STATE::ATTACK && spritePlayChar.sp.nState != MYPLAYERCHARACTER_STATE::MOVE))
     {
         return;
     }
 
     // 時間経過が攻撃間隔未満であれば処理対象外
     int nBulletInterval[MYPLAYCHAR_WEAPON_LV_MAX][3] = {
-        { 1000, 300, 700 },
-        { 1000, 270, 700 },
-        { 1000, 240, 700 },
-        { 1000, 210, 700 },
-        { 1000, 180, 700 },
-        { 1000, 150, 700 },
-        { 1000, 120, 700 },
-        { 1000,  90, 700 },
-        { 1000,  60, 700 },
-        { 1000,  30, 700 }
+        {  800, 300, 300 },
+        {  800, 270, 390 },
+        {  800, 240, 480 },
+        {  800, 210, 570 },
+        {  800, 180, 660 },
+        {  800, 150, 630 },
+        {  800, 120, 600 },
+        {  800,  90, 570 },
+        {  800,  60, 540 },
+        {  800,  30, 510 }
     };
-    WORD nLv = spritePlayChar.nWeaponLevel[spritePlayChar.nWeaponType];
+    WORD nLv = spritePlayChar.nWeaponLevel[spritePlayChar.nWeaponType] - 1;
 
     if(dwTickCount - dwBulletInterval < nBulletInterval[nLv][spritePlayChar.nWeaponType])
     {
@@ -1018,49 +1373,272 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
     }
 
     // 武器種別ごとの弾生成
-    CMyList<MYBULLET> *ptr;
+    int i, nCreateNum;
+    CMyList<SPRITE> *pBuddy;
     switch(spritePlayChar.nWeaponType)
     {
-        // 赤
+        // 赤(Penetrate)
         case MYPLAYCHAR_WEAPON_RED_INDEX:
+            int nAddNum;
+            nAddNum = spritePlayChar.nWeaponLevel[0] * 2 % 4;
+
+            nCreateNum = spritePlayChar.nWeaponLevel[0] * 2 / 4;
+            nCreateNum += ((nAddNum >= 1) ? 1 : 0);
+            for(i = 0; i < nCreateNum; i++)
+            {
+                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 12);
+                pBuddy = listBuddy.GetHeadPtr();
+                while(pBuddy)
+                {
+                    CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 12);
+                    pBuddy = pBuddy->next;
+                }
+            }
+
+            nCreateNum = spritePlayChar.nWeaponLevel[0] * 2 / 4;
+            nCreateNum += ((nAddNum >= 2) ? 1 : 0);
+            for(i = 0; i < nCreateNum; i++)
+            {
+                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 8);
+                pBuddy = listBuddy.GetHeadPtr();
+                while(pBuddy)
+                {
+                    CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 8);
+                    pBuddy = pBuddy->next;
+                }
+            }
+
+            nCreateNum = spritePlayChar.nWeaponLevel[0] * 2 / 4;
+            nCreateNum += ((nAddNum >= 3) ? 1 : 0);
+            for(i = 0; i < nCreateNum; i++)
+            {
+                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 4);
+                pBuddy = listBuddy.GetHeadPtr();
+                while(pBuddy)
+                {
+                    CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 4);
+                    pBuddy = pBuddy->next;
+                }
+            }
+
+            nCreateNum = spritePlayChar.nWeaponLevel[0] * 2 / 4;
+            for(i = 0; i < nCreateNum; i++)
+            {
+                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 0);
+                pBuddy = listBuddy.GetHeadPtr();
+                while(pBuddy)
+                {
+                    CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 0);
+                    pBuddy = pBuddy->next;
+                }
+            }
             break;
 
-        // 緑
+        // 緑(Rapid Shot)
         case MYPLAYCHAR_WEAPON_GREEN_INDEX:
-            // X座標が壁に接する場合は弾生成なし
-            if(spritePlayChar.sp.nPosX + 55 >= 300 && spritePlayChar.sp.nPosX + 52 < 316)
+            CreateBulletG(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 4);
+            pBuddy = listBuddy.GetHeadPtr();
+            while(pBuddy)
             {
-                return;
+                CreateBulletG(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 4);
+                pBuddy = pBuddy->next;
             }
-
-            // 弾の初期値をセット
-            ptr = new CMyList<MYBULLET>;
-            if(ptr == NULL)
-            {
-                return;
-            }
-
-            ptr->data.nMoveX = 0;
-            ptr->data.nMoveY = -4;
-            ptr->data.sp.byAlpha = 255;
-            ptr->data.sp.dwDelay = 16;
-            ptr->data.sp.dwLastTickCount = dwTickCount;
-            ptr->data.sp.nCurrentCell = 0;
-            ptr->data.sp.nMaxCell = 1;
-            ptr->data.sp.nPosX = spritePlayChar.sp.nPosX + 52;
-            ptr->data.sp.nPosY = GET_MYPLAYCHAR_POS_Y - 4;
-            ptr->data.sp.nState = MYPLAYCHAR_WEAPON_GREEN_INDEX;
-            ptr->data.sp.rcImage = { 324, 64, 328, 68 };
-
-            listBullet.AddTail(ptr);
             break;
 
-        // 青
+        // 青(1-5 Way Shot)
         case MYPLAYCHAR_WEAPON_BLUE_INDEX:
+            int nIndex, nCorrectX, nCorrectY;
+
+            nCreateNum = (spritePlayChar.nWeaponLevel[MYPLAYCHAR_WEAPON_BLUE_INDEX] + 4) / 5;
+            for(i = 0; i < nCreateNum; i++)
+            {
+                nIndex = (spritePlayChar.nWeaponLevel[MYPLAYCHAR_WEAPON_BLUE_INDEX] - 1) % 5 + 1;
+                if(i == 0 && nCreateNum > 1)
+                {
+                    nIndex = 5;
+                }
+
+                if(nIndex & 1)
+                {
+                    nCorrectX = nCorrectY = 0;
+                    if(i == 0)
+                    {
+                        nCorrectY = -4;
+                    }
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, 0, -4);
+
+                    pBuddy = listBuddy.GetHeadPtr();
+                    while(pBuddy)
+                    {
+                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, 0, -4);
+                        pBuddy = pBuddy->next;
+                    }
+                }
+
+                if(nIndex & 2)
+                {
+                    nCorrectX = nCorrectY = 0;
+                    if(i == 0)
+                    {
+                        nCorrectX = -1;
+                        nCorrectY = -3;
+                    }
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, -1, -3);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 - nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY,  1, -3);
+
+                    pBuddy = listBuddy.GetHeadPtr();
+                    while(pBuddy)
+                    {
+                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, -1, -3);
+                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 - nCorrectX, pBuddy->data.nPosY + nCorrectY,  1, -3);
+                        pBuddy = pBuddy->next;
+                    }
+                }
+
+                if(nIndex & 4)
+                {
+                    nCorrectX = nCorrectY = 0;
+                    if(i == 0)
+                    {
+                        nCorrectX = -1;
+                        nCorrectY = -3;
+                    }
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, -1, -3);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 - nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY,  1, -3);
+
+                    if(i == 0)
+                    {
+                        nCorrectX = -2;
+                        nCorrectY = -2;
+                    }
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, -2, -2);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 - nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY,  2, -2);
+
+                    pBuddy = listBuddy.GetHeadPtr();
+                    while(pBuddy)
+                    {
+                        if(i == 0)
+                        {
+                            nCorrectX = -1;
+                            nCorrectY = -3;
+                        }
+                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, -1, -3);
+                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 - nCorrectX, pBuddy->data.nPosY + nCorrectY,  1, -3);
+
+                        if(i == 0)
+                        {
+                            nCorrectX = -2;
+                            nCorrectY = -2;
+                        }
+                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, -2, -2);
+                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 - nCorrectX, pBuddy->data.nPosY + nCorrectY,  2, -2);
+                        pBuddy = pBuddy->next;
+                    }
+                }
+            } 
             break;
     }
 
     dwBulletInterval = dwTickCount;
+}
+
+// 弾スプライト生成(R)
+void CMyExampleGame::CreateBulletR(DWORD dwTickCount, int x, int y)
+{
+    CMyList<MYBULLET> *ptr;
+
+    // X座標が壁(300-316)に接する場合は弾生成なし
+    if((x + 3 >= 300) && (x < 317))
+    {
+        return;
+    }
+
+    // 弾の初期値をセット
+    ptr = new CMyList<MYBULLET>;
+    if(ptr == NULL)
+    {
+        return;
+    }
+
+    ptr->data.nMoveX = 0;
+    ptr->data.nMoveY = -8;
+    ptr->data.sp.byAlpha = 255;
+    ptr->data.sp.dwDelay = 16;
+    ptr->data.sp.dwLastTickCount = dwTickCount;
+    ptr->data.sp.nCurrentCell = 0;
+    ptr->data.sp.nMaxCell = 1;
+    ptr->data.sp.nPosX = x;
+    ptr->data.sp.nPosY = y;
+    ptr->data.sp.nState = MYPLAYCHAR_WEAPON_RED_INDEX;
+    ptr->data.sp.rcImage = { 320, 64, 324, 68 };
+
+    listBullet.AddTail(ptr);
+}
+
+// 弾スプライト生成(G)
+void CMyExampleGame::CreateBulletG(DWORD dwTickCount, int x, int y)
+{
+    CMyList<MYBULLET> *ptr;
+
+    // X座標が壁(300-316)に接する場合は弾生成なし
+    if((x + 3 >= 300) && (x < 317))
+    {
+        return;
+    }
+
+    // 弾の初期値をセット
+    ptr = new CMyList<MYBULLET>;
+    if(ptr == NULL)
+    {
+        return;
+    }
+
+    ptr->data.nMoveX = 0;
+    ptr->data.nMoveY = -4;
+    ptr->data.sp.byAlpha = 255;
+    ptr->data.sp.dwDelay = 16;
+    ptr->data.sp.dwLastTickCount = dwTickCount;
+    ptr->data.sp.nCurrentCell = 0;
+    ptr->data.sp.nMaxCell = 1;
+    ptr->data.sp.nPosX = x;
+    ptr->data.sp.nPosY = y;
+    ptr->data.sp.nState = MYPLAYCHAR_WEAPON_GREEN_INDEX;
+    ptr->data.sp.rcImage = { 324, 64, 328, 68 };
+
+    listBullet.AddTail(ptr);
+}
+
+// 弾スプライト生成(B)
+void CMyExampleGame::CreateBulletB(DWORD dwTickCount, int x, int y, int nMoveX, int nMoveY)
+{
+    CMyList<MYBULLET> *ptr;
+
+    // X座標が壁(300-316)に接する場合は弾生成なし
+    if((x + 3 >= 300) && (x < 317))
+    {
+        return;
+    }
+
+    // 弾の初期値をセット
+    ptr = new CMyList<MYBULLET>;
+    if(ptr == NULL)
+    {
+        return;
+    }
+
+    ptr->data.nMoveX = nMoveX;
+    ptr->data.nMoveY = nMoveY;
+    ptr->data.sp.byAlpha = 255;
+    ptr->data.sp.dwDelay = 16;
+    ptr->data.sp.dwLastTickCount = dwTickCount;
+    ptr->data.sp.nCurrentCell = 0;
+    ptr->data.sp.nMaxCell = 1;
+    ptr->data.sp.nPosX = x;
+    ptr->data.sp.nPosY = y;
+    ptr->data.sp.nState = MYPLAYCHAR_WEAPON_BLUE_INDEX;
+    ptr->data.sp.rcImage = { 328, 64, 332, 68 };
+
+    listBullet.AddTail(ptr);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -1068,9 +1646,10 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
 void CMyExampleGame::UpdateBullet(DWORD dwTickCount)
 {
     BOOL bDelete;
-    int nWidth, nHeight;
+    int nWidth, nHeight, nHeightCorrect;
     CMyList<MYBULLET> *ptr;
     CMyList<MYENEMY> *pEnemy;
+    CMyList<CMyGameItem> *pItem;
 
     // 弾の移動
     ptr = listBullet.GetHeadPtr();
@@ -1081,6 +1660,24 @@ void CMyExampleGame::UpdateBullet(DWORD dwTickCount)
         // 時間経過で弾移動
         if(dwTickCount - ptr->data.sp.dwLastTickCount > ptr->data.sp.dwDelay)
         {
+            // 壁との衝突判定
+            if(ptr->data.nMoveX > 0)
+            {
+                if((ptr->data.sp.nPosX + ptr->data.nMoveX + 4 > GAMESCREEN_WIDTH)
+                || (ptr->data.sp.nPosX + ptr->data.nMoveX + 4 > 300 && ptr->data.sp.nPosX + ptr->data.nMoveX + 4 < 316))
+                {
+                    ptr->data.nMoveX = -(ptr->data.nMoveX);
+                }
+            }
+            else if(ptr->data.nMoveX < 0)
+            {
+                if((ptr->data.sp.nPosX + ptr->data.nMoveX < 0)
+                || (ptr->data.sp.nPosX + ptr->data.nMoveX < 316 && ptr->data.sp.nPosX + ptr->data.nMoveX > 300))
+                {
+                    ptr->data.nMoveX = -(ptr->data.nMoveX);
+                }
+            }
+
             ptr->data.sp.nPosX += ptr->data.nMoveX;
             ptr->data.sp.nPosY += ptr->data.nMoveY;
             ptr->data.sp.dwLastTickCount = dwTickCount;
@@ -1110,6 +1707,24 @@ void CMyExampleGame::UpdateBullet(DWORD dwTickCount)
                 if(pEnemy->data.nLife <= 0)
                 {
                     dwScore += pEnemy->data.dwScore;
+                    if(pEnemy->data.bDispLife == TRUE)
+                    {
+                        pEnemy->data.sp.rcImage.left += MYBOSS_SIZE;
+                        pEnemy->data.sp.rcImage.right += MYBOSS_SIZE;
+                    }
+                    else
+                    {
+                        if(pEnemy->data.sp.rcImage.left < 128)
+                        {
+                            pEnemy->data.sp.rcImage.left = 96;
+                            pEnemy->data.sp.rcImage.right = 128;
+                        }
+                        else
+                        {
+                            pEnemy->data.sp.rcImage.left = 224;
+                            pEnemy->data.sp.rcImage.right = 256;
+                        }
+                    }
                     pEnemy->data.nLife = 0;
                     pEnemy->data.bDispLife = FALSE;
                     pEnemy->data.nAttack = 0;
@@ -1119,7 +1734,6 @@ void CMyExampleGame::UpdateBullet(DWORD dwTickCount)
                     pEnemy->data.sp.dwDelay = 300;
                     pEnemy->data.sp.dwLastTickCount = dwTickCount;
                     pEnemy->data.sp.nState = MYPLAYERCHARACTER_STATE::LOSE;
-                    pEnemy->data.sp.rcImage = { 96, 288, 128, 320 };
                 }
 
                 // 衝突した弾は削除
@@ -1127,6 +1741,42 @@ void CMyExampleGame::UpdateBullet(DWORD dwTickCount)
             }
 
             pEnemy = pEnemy->next;
+        }
+
+        // 弾とアイテムの衝突判定
+        pItem = listItem.GetHeadPtr();
+        while(pItem)
+        {
+            // 衝突判定
+            nWidth = pItem->data.rcLowSide.right - pItem->data.rcLowSide.left;
+            nHeight = pItem->data.rcLowSide.bottom - pItem->data.rcLowSide.top;
+            nHeightCorrect = pItem->data.rcLowSide.top - pItem->data.rcUpSide.top;
+            if((pItem->data.bActive == TRUE)
+            && (pItem->data.sp.nState != MYPLAYERCHARACTER_STATE::LOSE)
+            && (ptr->data.sp.nPosX < pItem->data.sp.nPosX + nWidth)
+            && (ptr->data.sp.nPosX + 4 > pItem->data.sp.nPosX)
+            && (ptr->data.sp.nPosY < pItem->data.sp.nPosY + nHeight + nHeightCorrect)
+            && (ptr->data.sp.nPosY + 4 > pItem->data.sp.nPosY + nHeightCorrect))
+            {
+                // 同一属性ならダメージ増
+                pItem->data.nLife -= (ptr->data.sp.nState == pItem->data.sp.nCurrentCell) ? 2 : 1;
+
+                // 開放にともなう処理
+                if(pItem->data.nLife <= 0)
+                {
+                    pItem->data.nLife = 0;
+                    pItem->data.nMoveY = 0;
+                    pItem->data.sp.byAlpha = 128;
+                    pItem->data.sp.dwDelay = 300;
+                    pItem->data.sp.dwLastTickCount = dwTickCount;
+                    pItem->data.sp.nState = MYPLAYERCHARACTER_STATE::LOSE;
+                }
+
+                // 衝突した弾は削除
+                bDelete = TRUE;
+            }
+
+            pItem = pItem->next;
         }
 
         // 次ポインタを取得
@@ -1160,6 +1810,68 @@ void CMyExampleGame::CreateEnemy(DWORD dwTickCount)
     // ウェーブカウントに応じた敵データ生成
     dwWaveCount++;
 
+    int x, y, nEnemyType, nEnemyAttr;
+    DWORD dwCnt, dwCreateNum, dwEnemyRank, dwBossCnt;
+
+    dwEnemyRank = dwWaveCount / 40;
+    dwBossCnt = dwWaveCount % 100;
+    dwCreateNum = (dwWaveCount / 2 < 100) ? dwWaveCount / 2 : 100;
+    for(dwCnt = 0; dwCnt < dwCreateNum; dwCnt++)
+    {
+        // BOSS出現判定
+        if((dwBossCnt % 10 == 0) && (dwCnt == dwCreateNum - 1))
+        {
+            // BOSS出現(1体)
+            if(dwCnt < 50)
+            {
+                y = 0 - MYBOSS_SIZE - (dwCnt / 10 * 4);
+                x = (300 - MYBOSS_SIZE) / 2;
+                nEnemyAttr = GetMyRandVal(0, 2);
+                CreateEnemyData(dwTickCount, x, y, 0, nEnemyAttr, dwEnemyRank, TRUE);
+            }
+            // BOSS出現(2体)
+            else if(dwCnt < 80)
+            {
+                y = 0 - MYBOSS_SIZE - (dwCnt / 10 * 4);
+                x = (300 / 2 - MYBOSS_SIZE) / 2;
+                nEnemyAttr = GetMyRandVal(0, 2);
+                CreateEnemyData(dwTickCount, x, y, 0, nEnemyAttr, dwEnemyRank, TRUE);
+
+                x = x + 300 / 2;
+                nEnemyAttr = GetMyRandVal(0, 2);
+                CreateEnemyData(dwTickCount, x, y, 0, nEnemyAttr, dwEnemyRank, TRUE);
+            }
+            // BOSS出現(3体)
+            else if(dwCnt < 100)
+            {
+                y = 0 - MYBOSS_SIZE - (dwCnt / 10 * 4);
+                x = (300 / 3 - MYBOSS_SIZE) / 2;
+                nEnemyAttr = GetMyRandVal(0, 2);
+                CreateEnemyData(dwTickCount, x, y, 0, nEnemyAttr, dwEnemyRank, TRUE);
+
+                x = x + 300 / 3;
+                nEnemyAttr = GetMyRandVal(0, 2);
+                CreateEnemyData(dwTickCount, x, y, 0, nEnemyAttr, dwEnemyRank, TRUE);
+
+                x = x + 300 / 3;
+                nEnemyAttr = GetMyRandVal(0, 2);
+                CreateEnemyData(dwTickCount, x, y, 0, nEnemyAttr, dwEnemyRank, TRUE);
+            }
+        }
+
+        // 通常
+        x = GetMyRandVal(24, 268);
+        y = 0 - MYENEMY_SIZE - (dwCnt / 10 * 4);
+        nEnemyType = GetMyRandVal(0, 1);
+        nEnemyAttr = GetMyRandVal(0, 2);
+        CreateEnemyData(dwTickCount, x, y, nEnemyType, nEnemyAttr, dwEnemyRank, FALSE);
+    }
+
+    dwWaveInterval = dwTickCount;
+}
+
+void CMyExampleGame::CreateEnemyData(DWORD dwTickCount, int x, int y, int nType, int nAttr, DWORD dwRank, BOOL bBoss)
+{
     CMyList<MYENEMY> *ptr;
     ptr = new CMyList<MYENEMY>;
     if(ptr == NULL)
@@ -1167,28 +1879,36 @@ void CMyExampleGame::CreateEnemy(DWORD dwTickCount)
         return;
     }
 
-    // 暫定処理
     ptr->data.sp.byAlpha = 255;
     ptr->data.sp.dwDelay = 120;
     ptr->data.sp.dwLastTickCount = dwTickCount;
     ptr->data.sp.nCurrentCell = 0;
     ptr->data.sp.nMaxCell = 1;
-    ptr->data.sp.nPosX = GetMyRandVal(32, 236);
-    ptr->data.sp.nPosY = -32;
+    ptr->data.sp.nPosX = x;
+    ptr->data.sp.nPosY = y;
     ptr->data.sp.nState = MYPLAYERCHARACTER_STATE::STAND;
-    ptr->data.sp.rcImage = { 32, 288, 64, 320 };
-    ptr->data.bDispLife = FALSE;
-    ptr->data.dwScore = 1;
-    ptr->data.nAttack = 1;
-    ptr->data.nLife = 2;
-    ptr->data.nLifeMax = 2;
     ptr->data.nMoveX = 0;
     ptr->data.nMoveY = 4;
-    ptr->data.nWeaponType = MYPLAYCHAR_WEAPON_GREEN_INDEX;
+    ptr->data.nWeaponType = nAttr;
+
+    if(bBoss == TRUE)
+    {
+        ptr->data.sp.rcImage = { nAttr * MYBOSS_SIZE, 192, (nAttr + 1) * MYBOSS_SIZE, 256 };
+        ptr->data.bDispLife = TRUE;
+        ptr->data.dwScore = (dwRank + 1) * 100;
+        ptr->data.nAttack = 5;
+        ptr->data.nLife = ptr->data.nLifeMax = ((dwRank + 1) * 10 < 250) ? (dwRank + 1) * 10 : 250;
+    }
+    else
+    {
+        ptr->data.sp.rcImage = { nType * 128 + nAttr * MYENEMY_SIZE, 288, nType * 128 + (nAttr + 1) * MYENEMY_SIZE, 320 };
+        ptr->data.bDispLife = FALSE;
+        ptr->data.dwScore = dwRank + 1;
+        ptr->data.nAttack = 1;
+        ptr->data.nLife = ptr->data.nLifeMax = (dwRank + 2 < 12) ? dwRank + 2 : 12;
+    }
 
     listEnemy.AddTail(ptr);
-
-    dwWaveInterval = dwTickCount;
 }
 
 ////////////////////////////////////////////////////////////////
@@ -1198,6 +1918,7 @@ void CMyExampleGame::UpdateEnemy(DWORD dwTickCount)
     int nHeight;
     BOOL bDelete;
     CMyList<MYENEMY> *ptr;
+    CMyList<SPRITE> *pBuddy;
 
     // 弾の移動
     ptr = listEnemy.GetTailPtr();
@@ -1223,10 +1944,36 @@ void CMyExampleGame::UpdateEnemy(DWORD dwTickCount)
                 nHeight = ptr->data.sp.rcImage.bottom - ptr->data.sp.rcImage.top;
                 if(ptr->data.sp.nPosY + nHeight > GET_MYPLAYCHAR_POS_Y)
                 {
-                    spritePlayChar.nLife -= ptr->data.nAttack;
-                    if(spritePlayChar.nLife < 0)
+                    // 武器持ち替え中は無敵
+                    if(spritePlayChar.sp.nState != MYPLAYERCHARACTER_STATE::TURN)
+                    {
+                        spritePlayChar.nLife -= ptr->data.nAttack;
+                    }
+
+                    if(spritePlayChar.nLife <= 0)
                     {
                         spritePlayChar.nLife = 0;
+
+                        // 味方がいれば身代わり
+                        pBuddy = listBuddy.GetTailPtr();
+                        while(pBuddy)
+                        {
+                            if(pBuddy->data.nState == MYPLAYERCHARACTER_STATE::LOSE)
+                            {
+                                pBuddy = pBuddy->prev;
+                            }
+                            else
+                            {
+                                spritePlayChar.nLife = spritePlayChar.nLifeMax;
+                                pBuddy->data.nState = MYPLAYERCHARACTER_STATE::LOSE;
+                                pBuddy->data.nCurrentCell = 0;
+                                pBuddy->data.dwLastTickCount = dwTickCount;
+                                pBuddy->data.byAlpha = 128;
+                                pBuddy->data.nMaxCell = nImageCell_pc[MYPLAYERCHARACTER_STATE::LOSE][2];
+                                pBuddy->data.dwDelay = nImageCell_pc[MYPLAYERCHARACTER_STATE::LOSE][3];
+                                break;
+                            }
+                        }
                     }
 
                     // 操作キャラに触れたらノックバック
@@ -1247,6 +1994,419 @@ void CMyExampleGame::UpdateEnemy(DWORD dwTickCount)
         {
             ptr = ptr->prev;
         }
+    }
+}
+
+////////////////////////////////////////////////////////////////
+// アイテム生成
+void CMyExampleGame::CreateGameItem(DWORD dwTickCount)
+{
+    // 操作不能の場合は処理対象外
+    if(spritePlayChar.nLife <= 0)
+    {
+        return;
+    }
+
+    // 時間経過がアイテム出現間隔未満であれば処理対象外
+    if(dwTickCount - dwItemInterval < MYITEM_WAVE_INTERVAL)
+    {
+        return;
+    }
+
+    int i, nRandVal;
+    CMyList<CMyGameItem> *ptr;
+    CMyList<SPRITE> *ptrBuddy;
+    int nItemIDRotate[GETITEM_IDX_MAX] = {
+        GETITEM_GUN_R, GETITEM_GUN_G, GETITEM_GUN_B,
+        GETITEM_BUDDY1, GETITEM_BUDDY2, GETITEM_BUDDY3,
+        GETITEM_RECOVER
+    };
+    DWORD dwCreateFlag = nItemIDRotate[wItemIndex];
+
+    // 生成済みチェック
+    ptr = listItem.GetHeadPtr();
+    while(ptr)
+    {
+        if(ptr->data.dwItemID != dwCreateFlag)
+        {
+            ptr = ptr->next;
+            continue;
+        }
+
+        // 生成済みアイテムの場合はデータを使いまわす
+        switch(dwCreateFlag)
+        {
+            // 武器データのリセット
+            case GETITEM_GUN_R:
+            case GETITEM_GUN_G:
+            case GETITEM_GUN_B:
+                ptr->data.SetInitDataWeapon(this, dwCreateFlag, dwTickCount, ptr->data.sp.nCurrentCell);
+                break;
+
+            // 味方データのリセット
+            case GETITEM_BUDDY1:
+                ptr->data.SetInitDataBuddy(this, dwCreateFlag, dwTickCount, 0);
+                break;
+            case GETITEM_BUDDY2:
+                ptr->data.SetInitDataBuddy(this, dwCreateFlag, dwTickCount, 1);
+                break;
+            case GETITEM_BUDDY3:
+                ptr->data.SetInitDataBuddy(this, dwCreateFlag, dwTickCount, 2);
+                break;
+
+            // 回復データのリセット
+            case GETITEM_RECOVER:
+                ptr->data.SetInitDataOther(this, dwCreateFlag, dwTickCount);
+                break;
+
+            default:
+                break;
+        }
+        ptr->data.JudgeDisplay();
+        dwItemInterval = dwTickCount;
+        wItemIndex = (wItemIndex + 1) % GETITEM_IDX_MAX;
+        return;
+    }
+    
+    // 武器アイテム生成
+    DWORD a_dwWeaponID[3] = { GETITEM_GUN_R, GETITEM_GUN_G, GETITEM_GUN_B };
+    for(i = 0; i < 3; i++)
+    {
+        if(dwCreateFlag & a_dwWeaponID[i])
+        {
+            ptr = new CMyList<CMyGameItem>;
+            if(ptr != NULL)
+            {
+                ptr->data.SetInitDataWeapon(this, a_dwWeaponID[i], dwTickCount, i);
+                ptr->data.ResetLife();
+                ptr->data.JudgeDisplay();
+                listItem.AddTail(ptr);
+                dwItemInterval = dwTickCount;
+            }
+        }
+    }
+
+    // 味方生成
+    DWORD a_dwBuddyID[3] = { GETITEM_BUDDY1, GETITEM_BUDDY2, GETITEM_BUDDY3 };
+    for(i = 0; i < 3; i++)
+    {
+        if(dwCreateFlag & a_dwBuddyID[i])
+        {
+            // 味方キャラが存在するかチェック
+            ptrBuddy = listBuddy.GetHeadPtr();
+            while(ptrBuddy)
+            {
+                if(ptrBuddy->data.dwSpriteID == a_dwBuddyID[i])
+                {
+                    break;
+                }
+    
+                ptrBuddy = ptrBuddy->next;
+            }
+    
+            // 存在しなければ生成
+            if(ptrBuddy == NULL)
+            {
+                ptr = new CMyList<CMyGameItem>;
+                if(ptr != NULL)
+                {
+                    ptr->data.SetInitDataBuddy(this, a_dwBuddyID[i], dwTickCount, i);
+                    ptr->data.sp.nCurrentCell = GetMyRandVal(0, 2);
+                    ptr->data.ResetLife();
+                    ptr->data.JudgeDisplay();
+                    listItem.AddTail(ptr);
+                    dwItemInterval = dwTickCount;
+                }
+            }
+        }
+    }
+
+    // 回復生成
+    if(dwCreateFlag & GETITEM_RECOVER)
+    {
+        ptr = new CMyList<CMyGameItem>;
+        if(ptr != NULL)
+        {
+            ptr->data.SetInitDataOther(this, GETITEM_RECOVER, dwTickCount);
+            ptr->data.sp.nCurrentCell = GetMyRandVal(0, 2);
+            ptr->data.ResetLife();
+            ptr->data.JudgeDisplay();
+            listItem.AddTail(ptr);
+            dwItemInterval = dwTickCount;
+        }
+    }
+
+    wItemIndex = (wItemIndex + 1) % GETITEM_IDX_MAX;
+}
+
+////////////////////////////////////////////////////////////////
+// アイテム更新
+void CMyExampleGame::UpdateGameItem(DWORD dwTickCount)
+{
+    int nHeightLow, nHeightAll;
+    BOOL bDelete;
+    CMyList<CMyGameItem> *ptr;
+
+    // アイテムの移動
+    ptr = listItem.GetHeadPtr();
+    while(ptr)
+    {
+        bDelete = FALSE;
+
+        // 時間経過でアイテム移動
+        if(dwTickCount - ptr->data.sp.dwLastTickCount > ptr->data.sp.dwDelay)
+        {
+            // 開放されたアイテムは削除
+            if(ptr->data.sp.nState == MYPLAYERCHARACTER_STATE::LOSE)
+            {
+                bDelete = TRUE;
+
+                // アイテム効果発動
+                if(ptr->data.pfunc != NULL)
+                {
+                    (this->*ptr->data.pfunc)(&(ptr->data), dwTickCount);
+                }
+            }
+            // 開放されていないアイテムは移動
+            else if(ptr->data.bActive == TRUE)
+            {
+                ptr->data.sp.nPosY += ptr->data.nMoveY;
+                ptr->data.sp.dwLastTickCount = dwTickCount;
+
+                // 操作キャラに触れたら非表示/非活性
+                nHeightAll = ptr->data.rcLowSide.bottom - ptr->data.rcUpSide.top;
+                nHeightLow = ptr->data.rcLowSide.bottom - ptr->data.rcLowSide.top;
+                if(ptr->data.sp.nPosY + nHeightAll > GET_MYPLAYCHAR_POS_Y + nHeightLow)
+                {
+                    ptr->data.bActive = FALSE;
+                }
+            }
+        }
+
+        // 次のポインタを取得
+        if(bDelete == TRUE)
+        {
+            ptr = listItem.DeleteElement(ptr);
+        }
+        else
+        {
+            ptr = ptr->next;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////
+// アイテム獲得(武器)
+void CMyExampleGame::ChangeWeapon(CMyGameItem *ptrItem, DWORD dwTickCount)
+{
+    WORD wType = (WORD)(ptrItem->sp.nCurrentCell);
+
+    // 異種なら持ち替え
+    if(spritePlayChar.nWeaponType != wType)
+    {
+        spritePlayChar.nWeaponType = wType;
+    }
+    // 同種ならレベルアップ
+    else
+    {
+        spritePlayChar.nWeaponLevel[wType]++;
+
+        // レベル上限(10)に到達すれば同種の敵を撃破
+        if(spritePlayChar.nWeaponLevel[wType] >= 10)
+        {
+            CMyList<MYENEMY> *ptr;
+            ptr = listEnemy.GetHeadPtr();
+            while(ptr)
+            {
+                if(ptr->data.nWeaponType == wType)
+                {
+                    dwScore += ptr->data.dwScore;
+                    if(ptr->data.bDispLife == TRUE)
+                    {
+                        ptr->data.sp.rcImage.left += MYBOSS_SIZE;
+                        ptr->data.sp.rcImage.right += MYBOSS_SIZE;
+                    }
+                    else
+                    {
+                        if(ptr->data.sp.rcImage.left < 128)
+                        {
+                            ptr->data.sp.rcImage.left = 96;
+                            ptr->data.sp.rcImage.right = 128;
+                        }
+                        else
+                        {
+                            ptr->data.sp.rcImage.left = 224;
+                            ptr->data.sp.rcImage.right = 256;
+                        }
+                    }
+                    ptr->data.nLife = 0;
+                    ptr->data.bDispLife = FALSE;
+                    ptr->data.nAttack = 0;
+                    ptr->data.nMoveX = 0;
+                    ptr->data.nMoveY = 0;
+                    ptr->data.sp.byAlpha = 128;
+                    ptr->data.sp.dwDelay = 300;
+                    ptr->data.sp.dwLastTickCount = dwTickCount;
+                    ptr->data.sp.nState = MYPLAYERCHARACTER_STATE::LOSE;
+                }
+
+                ptr = ptr->next;
+            }
+
+            spritePlayChar.nWeaponLevel[wType] = 10;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////
+// アイテム獲得(味方)
+void CMyExampleGame::AddBuddy(CMyGameItem *ptrItem, DWORD dwTickCount)
+{
+    int nNum;
+    CMyList<SPRITE> *ptrBuddy;
+
+    // 既に味方がいるなら無効
+    nNum = listBuddy.GetNumOfElement();
+    if(nNum >= 3)
+    {
+        return;
+    }
+
+    // 重複する味方がいるなら無効
+    ptrBuddy = listBuddy.GetHeadPtr();
+    while(ptrBuddy)
+    {
+        if(ptrBuddy->data.dwSpriteID == ptrItem->dwItemID)
+        {
+            return;
+        }
+
+        ptrBuddy = ptrBuddy->next;
+    }
+
+    ptrBuddy = new CMyList<SPRITE>;
+    if(ptrBuddy == NULL)
+    {
+        return;
+    }
+
+    // 初期値セット
+    int nIndex = ptrItem->sp.dwSpriteID;
+
+    ptrBuddy->data.dwSpriteID = ptrItem->dwItemID;
+    ptrBuddy->data.rcImage = { nIndex * 128, 256, nIndex * 128 + MYPLAYBUDDY_SIZE, 288 };
+    ptrBuddy->data.nPosX = spritePlayChar.sp.nPosX + nBuddyPosX[nNum];
+    ptrBuddy->data.nPosY = spritePlayChar.sp.nPosY + nBuddyPosY[nNum];
+    ptrBuddy->data.nState = MYPLAYERCHARACTER_STATE::STAND;
+    ptrBuddy->data.byAlpha = 255;
+    ptrBuddy->data.nCurrentCell = 0;
+    ptrBuddy->data.nMaxCell = nImageCell_pc[MYPLAYERCHARACTER_STATE::STAND][2];
+    ptrBuddy->data.dwDelay = nImageCell_pc[MYPLAYERCHARACTER_STATE::STAND][3];
+    ptrBuddy->data.dwLastTickCount = spritePlayChar.sp.dwLastTickCount;
+
+    if(ptrBuddy->data.nPosX < 0)
+    {
+        ptrBuddy->data.nPosX = 0;
+    }
+
+    if(ptrBuddy->data.nPosX > GAMESCREEN_WIDTH - MYPLAYBUDDY_SIZE)
+    {
+        ptrBuddy->data.nPosX = GAMESCREEN_WIDTH - MYPLAYBUDDY_SIZE;
+    }
+
+    listBuddy.AddTail(ptrBuddy);
+
+    // 回復
+    spritePlayChar.nLife = spritePlayChar.nLifeMax;
+}
+
+
+////////////////////////////////////////////////////////////////
+// ゲームアイテムクラス
+////////////////////////////////////////////////////////////////
+// 武器アイテム初期値セット
+void CMyGameItem::SetInitDataWeapon(CMyExampleGame *pgame, DWORD dwID, DWORD dwTickCount, int nState)
+{
+    dwItemID = dwID;
+    bActive = FALSE;
+    nRate = (pgame->spritePlayChar.nWeaponLevel[nState] < 10) ? 100 : 50;
+    nCountMax = nCount = 3;
+    nLifeMax = 72 * pgame->spritePlayChar.nWeaponLevel[nState];
+    nMoveY = 1;
+    rcUpSide =  { 256, 288, 328, 296 };
+    rcLowSide = { 256, 368, 328, 384 };
+    sp.rcImage = { nState * 64, 320, (nState + 1) * 64, 384 };
+    sp.nPosX = 322;
+    sp.nPosY = -96;
+    sp.nState = MYPLAYERCHARACTER_STATE::MOVE;
+    sp.byAlpha = 255;
+    sp.nCurrentCell = nState;
+    sp.nMaxCell = 1;
+    sp.dwDelay = 16;
+    sp.dwLastTickCount = dwTickCount;
+    pfunc = CMyExampleGame::ChangeWeapon;
+}
+
+////////////////////////////////////////////////////////////////
+// 味方アイテム初期値セット
+void CMyGameItem::SetInitDataBuddy(CMyExampleGame *pgame, DWORD dwID, DWORD dwTickCount, int nState)
+{
+    dwItemID = dwID;
+    bActive = FALSE;
+    nRate = 100;
+    nCountMax = nCount = 1;
+    nLifeMax = 72;
+    nMoveY = 1;
+    rcUpSide =  { 256, 288, 328, 296 };
+    rcLowSide = { 256, 368, 328, 384 };
+    sp.rcImage = { nState * 128 + 96, 256, (nState + 1) * 128, 288 };
+    sp.dwSpriteID = nState;
+    sp.nPosX = 322;
+    sp.nPosY = -96;
+    sp.nState = MYPLAYERCHARACTER_STATE::MOVE;
+    sp.byAlpha = 255;
+    sp.nMaxCell = 1;
+    sp.dwDelay = 16;
+    sp.dwLastTickCount = dwTickCount;
+    pfunc = CMyExampleGame::AddBuddy;
+}
+
+////////////////////////////////////////////////////////////////
+// 回復アイテム初期値セット
+void CMyGameItem::SetInitDataOther(CMyExampleGame *pgame, DWORD dwID, DWORD dwTickCount)
+{
+    dwItemID = dwID;
+    bActive = FALSE;
+    nRate = 100 - (int)(pgame->spritePlayChar.nLife * 100 / MYPLAYCHAR_LIFE);
+    nCountMax = nCount = 4;
+    nLifeMax = 72;
+    nMoveY = 1;
+    rcUpSide =  { 256, 288, 328, 296 };
+    rcLowSide = { 256, 368, 328, 384 };
+    sp.rcImage = { 192, 320, 256, 384 };
+    sp.dwSpriteID = dwID;
+    sp.nPosX = 322;
+    sp.nPosY = -96;
+    sp.nState = MYPLAYERCHARACTER_STATE::MOVE;
+    sp.byAlpha = 255;
+    sp.nMaxCell = 1;
+    sp.dwDelay = 16;
+    sp.dwLastTickCount = dwTickCount;
+    pfunc = CMyExampleGame::RecoverLife;
+}
+
+////////////////////////////////////////////////////////////////
+// アイテム出現判定
+void CMyGameItem::JudgeDisplay()
+{
+    int nRandVal = GetMyRandVal(0, 99);
+    nCount--;
+
+    // 確率判定or天井カウントに到達
+    if((nRandVal < nRate) || (nCount <= 0))
+    {
+        nCount = nCountMax;
+        bActive = TRUE;
     }
 }
 

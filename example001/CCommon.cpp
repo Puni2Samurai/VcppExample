@@ -2,98 +2,21 @@
 #include "CExampleGame.h"
 
 ////////////////////////////////////////////////////////////////
-// テンプレートクラス
+// 共通関数
 ////////////////////////////////////////////////////////////////
-// 先頭に要素を追加
-template <class T>
-void CMyListBase<T>::AddHead(CMyList<T> *ptr)
+// 乱数取得
+LONG GetMyRandVal(LONG lMin, LONG lMax)
 {
-    // 要素が存在する場合
-    if(head != NULL)
-    {
-        head->prev = ptr;
-        ptr->next = head;
-    }
-    // 要素が存在しない場合
-    else
-    {
-        tail = ptr;
-        ptr->next = NULL;
-    }
+    LONG lRand, lRange;
 
-    head = ptr;
-    head->prev = NULL;
-    nElement++;
+    do
+    {
+        lRand = (LONG)rand();
+    } while(lRand == RAND_MAX);
+
+    lRange = lMax - lMin + 1;
+    lRand = (LONG)((DOUBLE)lRand / RAND_MAX * lRange) + lMin;
+
+    return lRand;
 }
-
-////////////////////////////////////////////////////////////////
-// 末尾に要素を追加
-template <class T>
-void CMyListBase<T>::AddTail(CMyList<T> *ptr)
-{
-    // 要素が存在する場合
-    if(tail != NULL)
-    {
-        tail->next = ptr;
-        ptr->prev = tail;
-    }
-    // 要素が存在しない場合
-    else
-    {
-        head = ptr;
-        ptr->prev = NULL;
-    }
-
-    tail = ptr;
-    tail->next = NULL;
-    nElement++;
-}
-
-////////////////////////////////////////////////////////////////
-// 指定の要素を削除
-template <class T>
-CMyList<T> *CMyListBase<T>::DeleteElement(CMyList<T> *ptr, BOOL bNext)
-{
-    CMyList<T> *p;
-    if(bNext == TRUE)
-    {
-        p = ptr->next;
-    }
-    else
-    {
-        p = ptr->prev;
-    }
-
-    // 削除対象が先頭要素の場合
-    if(ptr == head)
-    {
-        head = ptr->next;
-    }
-    else
-    {
-        ptr->prev->next = ptr->next;
-    }
-
-    // 削除対象が末尾要素の場合
-    if(ptr == tail)
-    {
-        tail = ptr->prev;
-    }
-    else
-    {
-        ptr->next->prev = ptr->prev;
-    }
-
-    delete ptr;
-    nElement--;
-
-    return p;
-}
-
-
-////////////////////////////////////////////////////////////////
-template class CMyListBase<MYBULLET>;
-template class CMyList<MYBULLET>;
-template class CMyListBase<MYENEMY>;
-template class CMyList<MYENEMY>;
 

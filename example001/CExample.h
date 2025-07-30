@@ -66,6 +66,32 @@ typedef struct tag_select_cursor
 } SELECTCURSOR;
 
 ////////////////////////////////////////////////////////////////
+// ゲームアイテムクラス
+class CMyExampleGame;
+class CMyGameItem
+{
+public:
+    SPRITE sp;       // スプライト
+    DWORD dwItemID;  // アイテムID
+    BOOL bActive;    // 活性フラグ
+    int nRate;       // 出現率
+    int nCountMax;   // 出現率天井
+    int nCount;      // 出現率天井カウント
+    int nLife;       // 耐久力
+    int nLifeMax;    // 耐久力(最大値)
+    int nMoveY;      // 移動量
+    RECT rcUpSide;   // イメージ内座標(上部)
+    RECT rcLowSide;  // 当たり判定座標(下部)
+    void (CMyExampleGame::*pfunc)(CMyGameItem*, DWORD); // アイテム取得処理
+
+    void SetInitDataBuddy(CMyExampleGame  *pgame, DWORD dwID, DWORD dwTickCount, int nState);
+    void SetInitDataWeapon(CMyExampleGame *pgame, DWORD dwID, DWORD dwTickCount, int nState);
+    void SetInitDataOther(CMyExampleGame  *pgame, DWORD dwID, DWORD dwTickCount);
+    void JudgeDisplay();
+    void ResetLife(){ nLife = nLifeMax; }
+};
+
+////////////////////////////////////////////////////////////////
 // アプリ固有クラス
 ////////////////////////////////////////////////////////////////
 // 基本クラス
@@ -116,9 +142,6 @@ private:
     HFONT hfont32;
     HFONT hfont64;
 
-    // 入力デバイス
-    //CMyKeyInput myKeyInput;
-
 public:
     CMyExampleTitle();
     ~CMyExampleTitle(){ FreeTitle(); }
@@ -156,11 +179,14 @@ private:
     DWORD dwWaveInterval;
     DWORD dwItemInterval;
     DWORD dwBulletInterval;
+    WORD wItemIndex;
 
     // スプライト
-    MYPLAYERCHARACTER spritePlayChar;  // 操作キャラ
-    CMyListBase<MYBULLET> listBullet;  // 自弾
-    CMyListBase<MYENEMY>  listEnemy;   // 敵キャラ
+    MYPLAYERCHARACTER  spritePlayChar;  // 操作キャラ
+    CMyListBase<SPRITE>     listBuddy;  // 味方キャラ
+    CMyListBase<MYBULLET>  listBullet;  // 自弾
+    CMyListBase<MYENEMY>    listEnemy;  // 敵キャラ
+    CMyListBase<CMyGameItem> listItem;  // アイテム
 
     // タスク遷移
     MYMAINTASK taskNext;  // 遷移先タスク
@@ -174,13 +200,10 @@ private:
     CDib24* pOffscreen;  // オフスクリーン
 
     // フォント
+    HFONT hfont12;
     HFONT hfont16;
-    HFONT hfont24;
     HFONT hfont32;
     HFONT hfont64;
-
-    // 入力デバイス
-    //CMyKeyInput myKeyInput;
 
 public:
     CMyExampleGame();
@@ -207,14 +230,28 @@ public:
     void DrawBackground();
     void DrawSprite(DWORD dwTickCount);
     void DrawSprite_Exit();
-    void DrawChar(HFONT& hfont, int x, int y, LPCWSTR lpszText, COLORREF rgbText, COLORREF rgbBorder);
-    void SetScoreStr();
+    void DrawGameString(DWORD dwTickCount);
+    void DrawChar(HFONT& hfont, int x, int y, LPCWSTR lpszText, COLORREF rgbText, COLORREF rgbBorder, BOOL bBorder=TRUE);
 
     // ゲームデータ更新
     void CreateBullet(DWORD dwTickCount);
+    void CreateBulletR(DWORD dwTickCount, int x, int y);
+    void CreateBulletG(DWORD dwTickCount, int x, int y);
+    void CreateBulletB(DWORD dwTickCount, int x, int y, int nMoveX, int nMoveY);
     void UpdateBullet(DWORD dwTickCount);
+    void CreateEnemyData(DWORD dwTickCount, int x, int y, int nType, int nAttr, DWORD dwRank, BOOL bBoss);
     void CreateEnemy(DWORD dwTickCount);
     void UpdateEnemy(DWORD dwTickCount);
+    void CreateGameItem(DWORD dwTickCount);
+    void UpdateGameItem(DWORD dwTickCount);
+    void UpdateBuddy(DWORD dwTickCount);
+    void AddBuddy(CMyGameItem *ptrItem, DWORD dwTickCount);
+    void ChangeWeapon(CMyGameItem *ptrItem, DWORD dwTickCount);
+    void RecoverLife(CMyGameItem *ptrItem, DWORD dwTickCount){ spritePlayChar.nLife = spritePlayChar.nLifeMax; }
+
+    friend void CMyGameItem::SetInitDataBuddy(CMyExampleGame  *pGame, DWORD dwID, DWORD dwTickCount, int nState);
+    friend void CMyGameItem::SetInitDataWeapon(CMyExampleGame *pGame, DWORD dwID, DWORD dwTickCount, int nState);
+    friend void CMyGameItem::SetInitDataOther(CMyExampleGame  *pGame, DWORD dwID, DWORD dwTickCount);
 };
 
 ////////////////////////////////////////////////////////////////
