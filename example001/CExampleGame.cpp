@@ -26,6 +26,7 @@
 #define MYPLAYCHAR_BUDDY_S_INDEX 1
 #define MYPLAYCHAR_BUDDY_B_INDEX 2
 #define MYPLAYCHAR_LIFE 256
+#define MYPLAYCHAR_BULLET_CORRECT_X 46
 
 // 操作キャラの状態
 enum MYPLAYERCHARACTER_STATE
@@ -432,14 +433,21 @@ void CMyExampleGame::InitOffscreen()
     EraseOffscreen();
 
     // 固定文言表示
-    DrawChar(hfont32, 408,   8, L"現在、作成中です...", RGB(254,254,254), RGB(127,254,127));
-    DrawChar(hfont32, 408,  48, L"テンキー4/左クリック", RGB(254,254,254), RGB(127,254,127));
-    DrawChar(hfont32, 424,  96, L"左に移動", RGB(254,254,254), RGB(127,254,127));
-    DrawChar(hfont32, 408, 192, L"テンキー6/右クリック", RGB(254,254,254), RGB(127,254,127));
-    DrawChar(hfont32, 424, 240, L"右に移動", RGB(254,254,254), RGB(127,254,127));
-    DrawChar(hfont32, 408, 336, L"テンキー5/中クリック", RGB(254,254,254), RGB(127,254,127));
-    DrawChar(hfont32, 424, 384, L"射撃ON/OFF切り替え", RGB(254,254,254), RGB(127,254,127));
-    DrawChar(hfont32, 408, 480, L"画面は開発中のものです", RGB(254,254,254), RGB(127,254,127));
+    DrawChar(hfont32, 408,  24, L"テンキー4/左クリック", RGB(254,254,254), RGB(127,254,127));
+    DrawChar(hfont32, 424,  72, L"左に移動", RGB(254,254,254), RGB(127,254,127));
+    DrawChar(hfont32, 408, 144, L"テンキー6/右クリック", RGB(254,254,254), RGB(127,254,127));
+    DrawChar(hfont32, 424, 192, L"右に移動", RGB(254,254,254), RGB(127,254,127));
+    DrawChar(hfont32, 408, 264, L"テンキー5/中クリック", RGB(254,254,254), RGB(127,254,127));
+    DrawChar(hfont32, 424, 312, L"射撃ON/OFF切り替え", RGB(254,254,254), RGB(127,254,127));
+
+    DrawChar(hfont16, 424, 384, L"お友達と楽しいキノコ狩りのはずが", RGB(254,254,254), RGB(127,127,127));
+    DrawChar(hfont16, 424, 402, L"誤って毒キノコを食べちゃった...", RGB(254,254,254), RGB(127,127,127));
+    DrawChar(hfont16, 424, 422, L"毒がまわるとゾンビ化しちゃうよ。", RGB(254,254,254), RGB(127,127,127));
+    DrawChar(hfont16, 424, 442, L"たいへんだ～！", RGB(254,254,254), RGB(127,127,127));
+    DrawChar(hfont16, 424, 472, L"でも大丈夫！", RGB(254,254,254), RGB(127,127,127));
+    DrawChar(hfont16, 424, 492, L"こんなこともあろうかと", RGB(254,254,254), RGB(127,127,127));
+    DrawChar(hfont16, 424, 512, L"お薬を作ってあるよ。薬液を散布して", RGB(254,254,254), RGB(127,127,127));
+    DrawChar(hfont16, 424, 532, L"お友達のゾンビ化を防ぎ切ろう！", RGB(254,254,254), RGB(127,127,127));
 }
 
 ////////////////////////////////////////////////////////////////
@@ -1386,11 +1394,15 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
             nCreateNum += ((nAddNum >= 1) ? 1 : 0);
             for(i = 0; i < nCreateNum; i++)
             {
-                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 12);
+                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X, GET_MYPLAYCHAR_POS_Y - 12);
                 pBuddy = listBuddy.GetHeadPtr();
                 while(pBuddy)
                 {
-                    CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 12);
+                    if(pBuddy->data.nState != MYPLAYERCHARACTER_STATE::LOSE)
+                    {
+                        CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 12);
+                    }
+
                     pBuddy = pBuddy->next;
                 }
             }
@@ -1399,11 +1411,15 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
             nCreateNum += ((nAddNum >= 2) ? 1 : 0);
             for(i = 0; i < nCreateNum; i++)
             {
-                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 8);
+                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X, GET_MYPLAYCHAR_POS_Y - 8);
                 pBuddy = listBuddy.GetHeadPtr();
                 while(pBuddy)
                 {
-                    CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 8);
+                    if(pBuddy->data.nState != MYPLAYERCHARACTER_STATE::LOSE)
+                    {
+                        CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 8);
+                    }
+
                     pBuddy = pBuddy->next;
                 }
             }
@@ -1412,11 +1428,15 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
             nCreateNum += ((nAddNum >= 3) ? 1 : 0);
             for(i = 0; i < nCreateNum; i++)
             {
-                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 4);
+                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X, GET_MYPLAYCHAR_POS_Y - 4);
                 pBuddy = listBuddy.GetHeadPtr();
                 while(pBuddy)
                 {
-                    CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 4);
+                    if(pBuddy->data.nState != MYPLAYERCHARACTER_STATE::LOSE)
+                    {
+                        CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 4);
+                    }
+
                     pBuddy = pBuddy->next;
                 }
             }
@@ -1424,11 +1444,15 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
             nCreateNum = spritePlayChar.nWeaponLevel[0] * 2 / 4;
             for(i = 0; i < nCreateNum; i++)
             {
-                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 0);
+                CreateBulletR(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X, GET_MYPLAYCHAR_POS_Y - 0);
                 pBuddy = listBuddy.GetHeadPtr();
                 while(pBuddy)
                 {
-                    CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 0);
+                    if(pBuddy->data.nState != MYPLAYERCHARACTER_STATE::LOSE)
+                    {
+                        CreateBulletR(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 0);
+                    }
+
                     pBuddy = pBuddy->next;
                 }
             }
@@ -1436,11 +1460,15 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
 
         // 緑(Rapid Shot)
         case MYPLAYCHAR_WEAPON_GREEN_INDEX:
-            CreateBulletG(dwTickCount, spritePlayChar.sp.nPosX + 52, GET_MYPLAYCHAR_POS_Y - 4);
+            CreateBulletG(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X, GET_MYPLAYCHAR_POS_Y - 4);
             pBuddy = listBuddy.GetHeadPtr();
             while(pBuddy)
             {
-                CreateBulletG(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 4);
+                if(pBuddy->data.nState != MYPLAYERCHARACTER_STATE::LOSE)
+                {
+                    CreateBulletG(dwTickCount, pBuddy->data.nPosX + 14, pBuddy->data.nPosY - 4);
+                }
+
                 pBuddy = pBuddy->next;
             }
             break;
@@ -1465,12 +1493,16 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
                     {
                         nCorrectY = -4;
                     }
-                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, 0, -4);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, 0, -4);
 
                     pBuddy = listBuddy.GetHeadPtr();
                     while(pBuddy)
                     {
-                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, 0, -4);
+                        if(pBuddy->data.nState != MYPLAYERCHARACTER_STATE::LOSE)
+                        {
+                            CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, 0, -4);
+                        }
+
                         pBuddy = pBuddy->next;
                     }
                 }
@@ -1483,14 +1515,18 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
                         nCorrectX = -1;
                         nCorrectY = -3;
                     }
-                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, -1, -3);
-                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 - nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY,  1, -3);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, -1, -3);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X - nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY,  1, -3);
 
                     pBuddy = listBuddy.GetHeadPtr();
                     while(pBuddy)
                     {
-                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, -1, -3);
-                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 - nCorrectX, pBuddy->data.nPosY + nCorrectY,  1, -3);
+                        if(pBuddy->data.nState != MYPLAYERCHARACTER_STATE::LOSE)
+                        {
+                            CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, -1, -3);
+                            CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 - nCorrectX, pBuddy->data.nPosY + nCorrectY,  1, -3);
+                        }
+
                         pBuddy = pBuddy->next;
                     }
                 }
@@ -1503,35 +1539,39 @@ void CMyExampleGame::CreateBullet(DWORD dwTickCount)
                         nCorrectX = -1;
                         nCorrectY = -3;
                     }
-                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, -1, -3);
-                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 - nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY,  1, -3);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, -1, -3);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X - nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY,  1, -3);
 
                     if(i == 0)
                     {
                         nCorrectX = -2;
                         nCorrectY = -2;
                     }
-                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, -2, -2);
-                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + 52 - nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY,  2, -2);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X + nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY, -2, -2);
+                    CreateBulletB(dwTickCount, spritePlayChar.sp.nPosX + MYPLAYCHAR_BULLET_CORRECT_X - nCorrectX, GET_MYPLAYCHAR_POS_Y + nCorrectY,  2, -2);
 
                     pBuddy = listBuddy.GetHeadPtr();
                     while(pBuddy)
                     {
-                        if(i == 0)
+                        if(pBuddy->data.nState != MYPLAYERCHARACTER_STATE::LOSE)
                         {
-                            nCorrectX = -1;
-                            nCorrectY = -3;
-                        }
-                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, -1, -3);
-                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 - nCorrectX, pBuddy->data.nPosY + nCorrectY,  1, -3);
+                            if(i == 0)
+                            {
+                                nCorrectX = -1;
+                                nCorrectY = -3;
+                            }
+                            CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, -1, -3);
+                            CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 - nCorrectX, pBuddy->data.nPosY + nCorrectY,  1, -3);
 
-                        if(i == 0)
-                        {
-                            nCorrectX = -2;
-                            nCorrectY = -2;
+                            if(i == 0)
+                            {
+                                nCorrectX = -2;
+                                nCorrectY = -2;
+                            }
+                            CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, -2, -2);
+                            CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 - nCorrectX, pBuddy->data.nPosY + nCorrectY,  2, -2);
                         }
-                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 + nCorrectX, pBuddy->data.nPosY + nCorrectY, -2, -2);
-                        CreateBulletB(dwTickCount, pBuddy->data.nPosX + 14 - nCorrectX, pBuddy->data.nPosY + nCorrectY,  2, -2);
+
                         pBuddy = pBuddy->next;
                     }
                 }
@@ -1730,6 +1770,8 @@ void CMyExampleGame::UpdateBullet(DWORD dwTickCount)
                     pEnemy->data.nAttack = 0;
                     pEnemy->data.nMoveX = 0;
                     pEnemy->data.nMoveY = 0;
+                    pEnemy->data.sp.nCurrentCell = 0;
+                    pEnemy->data.sp.nMaxCell = 1;
                     pEnemy->data.sp.byAlpha = 128;
                     pEnemy->data.sp.dwDelay = 300;
                     pEnemy->data.sp.dwLastTickCount = dwTickCount;
@@ -1860,7 +1902,7 @@ void CMyExampleGame::CreateEnemy(DWORD dwTickCount)
         }
 
         // 通常
-        x = GetMyRandVal(24, 268);
+        x = GetMyRandVal(24, 264);
         y = 0 - MYENEMY_SIZE - (dwCnt / 10 * 4);
         nEnemyType = GetMyRandVal(0, 1);
         nEnemyAttr = GetMyRandVal(0, 2);
@@ -1880,24 +1922,24 @@ void CMyExampleGame::CreateEnemyData(DWORD dwTickCount, int x, int y, int nType,
     }
 
     ptr->data.sp.byAlpha = 255;
-    ptr->data.sp.dwDelay = 120;
+    ptr->data.sp.dwDelay = 60;
     ptr->data.sp.dwLastTickCount = dwTickCount;
-    ptr->data.sp.nCurrentCell = 0;
-    ptr->data.sp.nMaxCell = 1;
     ptr->data.sp.nPosX = x;
     ptr->data.sp.nPosY = y;
     ptr->data.sp.nState = MYPLAYERCHARACTER_STATE::STAND;
     ptr->data.nMoveX = 0;
-    ptr->data.nMoveY = 4;
+    ptr->data.nMoveY = 2;
     ptr->data.nWeaponType = nAttr;
 
     if(bBoss == TRUE)
     {
-        ptr->data.sp.rcImage = { nAttr * MYBOSS_SIZE, 192, (nAttr + 1) * MYBOSS_SIZE, 256 };
+        ptr->data.sp.rcImage = { nAttr * MYBOSS_SIZE * 2, 192, nAttr * MYBOSS_SIZE * 2 + MYBOSS_SIZE, 256 };
         ptr->data.bDispLife = TRUE;
         ptr->data.dwScore = (dwRank + 1) * 100;
         ptr->data.nAttack = 5;
         ptr->data.nLife = ptr->data.nLifeMax = ((dwRank + 1) * 10 < 250) ? (dwRank + 1) * 10 : 250;
+        ptr->data.sp.nCurrentCell = 0;
+        ptr->data.sp.nMaxCell = 1;
     }
     else
     {
@@ -1906,6 +1948,8 @@ void CMyExampleGame::CreateEnemyData(DWORD dwTickCount, int x, int y, int nType,
         ptr->data.dwScore = dwRank + 1;
         ptr->data.nAttack = 1;
         ptr->data.nLife = ptr->data.nLifeMax = (dwRank + 2 < 12) ? dwRank + 2 : 12;
+        ptr->data.sp.nCurrentCell = GetMyRandVal(0, 9);
+        ptr->data.sp.nMaxCell = 10;
     }
 
     listEnemy.AddTail(ptr);
@@ -1919,6 +1963,7 @@ void CMyExampleGame::UpdateEnemy(DWORD dwTickCount)
     BOOL bDelete;
     CMyList<MYENEMY> *ptr;
     CMyList<SPRITE> *pBuddy;
+    int nMoveX[] = { 0, -2, -2, 2, 2,  0, 2, 2, -2, -2 };
 
     // 弾の移動
     ptr = listEnemy.GetTailPtr();
@@ -1936,7 +1981,8 @@ void CMyExampleGame::UpdateEnemy(DWORD dwTickCount)
             }
             // 生存している敵は移動
             {
-                ptr->data.sp.nPosX += ptr->data.nMoveX;
+                ptr->data.sp.nCurrentCell = (ptr->data.sp.nCurrentCell + 1) % ptr->data.sp.nMaxCell;
+                ptr->data.sp.nPosX += nMoveX[ptr->data.sp.nCurrentCell];
                 ptr->data.sp.nPosY += ptr->data.nMoveY;
                 ptr->data.sp.dwLastTickCount = dwTickCount;
 
@@ -2244,6 +2290,8 @@ void CMyExampleGame::ChangeWeapon(CMyGameItem *ptrItem, DWORD dwTickCount)
                     ptr->data.nAttack = 0;
                     ptr->data.nMoveX = 0;
                     ptr->data.nMoveY = 0;
+                    ptr->data.sp.nCurrentCell = 0;
+                    ptr->data.sp.nMaxCell = 1;
                     ptr->data.sp.byAlpha = 128;
                     ptr->data.sp.dwDelay = 300;
                     ptr->data.sp.dwLastTickCount = dwTickCount;
